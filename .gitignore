@@ -1,0 +1,7 @@
+# Allowlist: ignore everything at the repo root by default,
+# then re-include only the files the published site needs.
+/*
+
+!/.gitignore
+!/CNAME
+!/index.html
