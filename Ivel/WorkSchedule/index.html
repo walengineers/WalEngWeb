@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>TLO / Feeder — Site Electrician Work Schedule</title>
+<title>Work Schedule</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
@@ -11,7 +11,7 @@
 <!--
   ============================================================================
   SITE ELECTRICIAN WORK SCHEDULE
-  Single pane of glass. All content is driven by TLOFeeder_WorkSchedule.csv.
+  Single pane of glass. All content is driven by WorkSchedule.csv.
 
   THE CSV IS THE ONLY SOURCE OF DATA
   ----------------------------------
@@ -26,7 +26,7 @@
   Step 2 only works when the page is served over http. Browsers block a
   file:// page from reading a local file, so opening this by double-clicking
   always lands on step 3: press "Load CSV file" (or drag the CSV onto the
-  page) and pick TLOFeeder_WorkSchedule.csv.
+  page) and pick WorkSchedule.csv.
 
   To make it load by itself, publish the CSV and set CSV_URL:
     1. Import orkSchedule.csv into a Google Sheet.
@@ -56,7 +56,7 @@
 
     Edits live for the session only. Nothing is written to the browser and
     nothing is written back to the CSV. Press "Export CSV" and save over
-    TLOFeeder_WorkSchedule.csv to keep them. Reloading, or loading another
+    WorkSchedule.csv to keep them. Reloading, or loading another
     CSV, throws unsaved edits away - the page warns first.
 
     Any task set to status "complete" drops out of the schedule chart and is
@@ -754,8 +754,8 @@ body.editing .addbar { display: flex; }
 
 <header class="masthead">
   <div class="wrap">
-    <div class="eyebrow" id="m-eyebrow">WAL Engineering — Site Work Schedule</div>
-    <h1 id="m-title">Site Electrician Work Schedule</h1>
+    <div class="eyebrow" id="m-eyebrow">WAL Engineering — Work Schedule</div>
+    <h1 id="m-title">Work Schedule</h1>
     <p class="sub" id="m-subtitle"></p>
     <div class="metastrip" id="m-strip"></div>
   </div>
@@ -879,7 +879,7 @@ body.editing .addbar { display: flex; }
      data. See the comment block in <head> for how to publish from Google Sheets.
      ══════════════════════════════════════════════════════════════════════ */
   var CSV_URL   = '';
-  var LOCAL_CSV = 'TLOFeeder_WorkSchedule.csv';
+  var LOCAL_CSV = 'WorkSchedule.csv';
 
   var COLS = ['type','id','section','section_title','task','start_day','duration_days',
               'provisional','status','crew','description','reference','prerequisites',
@@ -971,8 +971,7 @@ body.editing .addbar { display: flex; }
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  /* Render equipment tags / module codes as inline code. Matches things like
-     TLO_MCC01, FDRPLC00A, 1769-PB2, Rack0.Slot3, I:0/01, I1:00 */
+  /* Render equipment tags / module codes as inline code.*/
   var TAG_RE = /\b(?:[A-Z][A-Z0-9]*_[A-Z0-9_]+|[A-Z]{2,}[A-Z0-9]*\d[A-Z0-9]*|\d{4}-[A-Z0-9]+|Rack\d+\.Slot\d+|I:\d+\/\d+|I\d+:\d+)\b/g;
   function fmt(s) {
     return esc(s).replace(TAG_RE, function (m) { return '<code>' + m + '</code>'; });
