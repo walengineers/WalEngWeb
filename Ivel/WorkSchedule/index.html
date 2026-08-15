@@ -1,0 +1,1749 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TLO / Feeder — Site Electrician Work Schedule</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+<!--
+  ============================================================================
+  SITE ELECTRICIAN WORK SCHEDULE
+  Single pane of glass. All content is driven by TLOFeeder_WorkSchedule.csv.
+
+  THE CSV IS THE ONLY SOURCE OF DATA
+  ----------------------------------
+  This file holds no copy of the schedule. Nothing renders until a CSV is
+  loaded, so the page can never show you stale data.
+
+  Where it looks, in order:
+    1. CSV_URL below, if one is set.
+    2. WorkSchedule.csv beside this file.
+    3. Nothing - it says so and waits for "Load CSV file".
+
+  Step 2 only works when the page is served over http. Browsers block a
+  file:// page from reading a local file, so opening this by double-clicking
+  always lands on step 3: press "Load CSV file" (or drag the CSV onto the
+  page) and pick TLOFeeder_WorkSchedule.csv.
+
+  To make it load by itself, publish the CSV and set CSV_URL:
+    1. Import orkSchedule.csv into a Google Sheet.
+    2. File > Share > Publish to web > select the sheet > "Comma-separated
+       values (.csv)" > Publish.
+    3. Paste the published URL into CSV_URL below.
+    Note: a published sheet is readable by anyone with the link.
+
+  EDITING ON THE PAGE
+  -------------------
+    Press "Edit" in the toolbar. Task rows, notes and the confirmation list
+    all become editable, including task id, status, start day, duration and
+    provisional.
+
+    Delete buttons appear in edit mode on: each task (in its detail panel,
+    open or completed), each note banner, each item in "Requires confirmation",
+    and the "Not yet populated" section as a whole. Each asks first, and
+    "Undo delete" in the toolbar restores the last one. Undo is in memory only
+    - it does not survive a page reload.
+
+    Add buttons sit beside each of those: "+ Task" on every section heading in
+    the chart, "Add section" under the chart, "Add completed item", "Add note",
+    "Add item" on the confirmation list, and "Restore this section" where the
+    "Not yet populated" section was deleted. A new task lands with its id and
+    section pre-filled from where it was added and the cursor in the task name
+    - all of it editable, including the id.
+
+    Edits live for the session only. Nothing is written to the browser and
+    nothing is written back to the CSV. Press "Export CSV" and save over
+    TLOFeeder_WorkSchedule.csv to keep them. Reloading, or loading another
+    CSV, throws unsaved edits away - the page warns first.
+
+    Any task set to status "complete" drops out of the schedule chart and is
+    listed in the "Completed" section, tagged with the section it came from.
+    Set the status back to move it into the schedule again.
+
+  Column reference:
+    type            meta | note | task | confirm
+                    (scope_in / scope_out rows are no longer rendered - the
+                     Work boundary section was removed. The rows are left in
+                     the CSV so nothing is lost.)
+    id              task number (1.1) or key for meta rows
+    section         section number, tasks only
+    section_title   section heading, tasks only
+    task            short task name
+    start_day       first day of work, relative (1 = first day on site)
+    duration_days   whole days
+    provisional     yes = hatched bar, flagged as not yet confirmed
+    status          not-started | in-progress | complete | blocked | on-hold
+    crew            who is assigned
+    description     detail text (also the value column for meta rows)
+    reference       source reference
+    prerequisites   what must be done first
+    isolation       isolation required
+    permit          permit required
+    hold_point      sign-off / hold point
+    notes           free text
+  ============================================================================
+-->
+
+<style>
+:root {
+  /* WAL Engineering palette */
+  --orange:       #D4570A;
+  --orange-mid:   #C04A08;
+  --orange-dark:  #9A3A04;
+  --orange-tint:  #FBEFE5;
+  --orange-line:  #F0CBAA;
+  --charcoal:     #1C1C1C;
+  --black:        #0A0A0A;
+  --paper:        #F5F0EB;
+  --white:        #FFFFFF;
+  --panel:        #F8F5F2;
+
+  --ink:    #1C1C1C;
+  --ink-2:  #55504B;
+  --ink-3:  #8A837C;
+  --line:   #D8D3CE;
+  --line-2: #E9E4DF;
+
+  /* status */
+  --st-not:     #8A837C;
+  --st-prog:    #D4570A;
+  --st-done:    #4F7A3F;
+  --st-block:   #B03028;
+  --st-hold:    #A87512;
+
+  --cond: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --sans: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'Space Mono', ui-monospace, Consolas, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* must beat the display: flex/grid/block set on classes below */
+[hidden] { display: none !important; }
+
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1320px; margin: 0 auto; padding: 0 24px 96px; }
+@media (max-width: 640px) { .wrap { padding: 0 14px 64px; } }
+
+/* ───────────────────────── header ───────────────────────── */
+
+.masthead {
+  background: var(--black);
+  color: var(--paper);
+  border-bottom: 5px solid var(--orange);
+}
+.masthead .wrap { padding-top: 30px; padding-bottom: 26px; }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--orange);
+}
+h1 {
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: clamp(28px, 5vw, 42px);
+  line-height: 1.08;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  margin: 8px 0 10px;
+}
+.sub { color: #C9C2BB; max-width: 780px; font-size: 15px; font-weight: 300; }
+
+.metastrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 34px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #333;
+}
+.metastrip .m { padding: 4px 0; }
+.metastrip .k {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7E7871;
+  display: block;
+}
+.metastrip .v { font-family: var(--cond); font-size: 17px; font-weight: 600; letter-spacing: 0.02em; }
+
+/* ───────────────────────── banners ───────────────────────── */
+
+.banner {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: var(--orange-tint);
+  border: 1px solid var(--orange-line);
+  border-left: 6px solid var(--orange);
+  padding: 14px 18px;
+  margin: 26px 0 0;
+  font-size: 14.5px;
+  color: #6A3A18;
+}
+.banner .tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--orange-dark);
+  white-space: nowrap;
+  padding-top: 3px;
+  flex: none;
+}
+.banner.neutral {
+  background: var(--panel);
+  border-color: var(--line);
+  border-left-color: var(--ink-3);
+  color: var(--ink-2);
+}
+.banner.neutral .tag { color: var(--ink-3); }
+
+/* ───────────────────────── section chrome ───────────────────────── */
+
+section { margin-top: 44px; }
+
+h2 {
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: 21px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--charcoal);
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--orange);
+  margin-bottom: 4px;
+}
+.h2note { font-size: 13.5px; color: var(--ink-3); margin-bottom: 18px; }
+
+/* ───────────────────────── stat tiles ───────────────────────── */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+.tile {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--ink-3);
+  padding: 12px 14px;
+}
+.tile .n { font-family: var(--cond); font-size: 30px; font-weight: 700; line-height: 1; }
+.tile .l {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-top: 6px;
+}
+.tile[data-s="total"]       { border-top-color: var(--charcoal); }
+.tile[data-s="not-started"] { border-top-color: var(--st-not); }
+.tile[data-s="in-progress"] { border-top-color: var(--st-prog); }
+.tile[data-s="complete"]    { border-top-color: var(--st-done); }
+.tile[data-s="blocked"]     { border-top-color: var(--st-block); }
+.tile[data-s="on-hold"]     { border-top-color: var(--st-hold); }
+.tile[data-s="in-progress"] .n { color: var(--st-prog); }
+.tile[data-s="complete"]    .n { color: var(--st-done); }
+.tile[data-s="blocked"]     .n { color: var(--st-block); }
+.tile[data-s="on-hold"]     .n { color: var(--st-hold); }
+
+/* ───────────────────────── toolbar ───────────────────────── */
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.toolbar .grp { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.toolbar .spacer { flex: 1 1 auto; }
+
+.chip {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--white);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  padding: 7px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip:hover { border-color: var(--orange); color: var(--orange-mid); }
+.chip[aria-pressed="true"] {
+  background: var(--charcoal);
+  border-color: var(--charcoal);
+  color: var(--paper);
+}
+.chip .cnt { opacity: 0.55; margin-left: 5px; }
+
+.btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--orange);
+  border: 1px solid var(--orange);
+  color: #fff;
+  padding: 8px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--orange-mid); border-color: var(--orange-mid); }
+.btn.ghost { background: transparent; color: var(--ink-2); border-color: var(--line); }
+.btn.ghost:hover { color: var(--orange-mid); border-color: var(--orange); }
+
+input[type="search"] {
+  font-family: var(--sans);
+  font-size: 14px;
+  padding: 7px 12px;
+  min-width: 190px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--ink);
+}
+input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -1px; }
+
+.srconly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ───────────────────────── gantt ───────────────────────── */
+
+.gantt-scroll { overflow-x: auto; border: 1px solid var(--line); background: var(--white); }
+.gantt { min-width: 900px; }
+
+.grow { display: grid; grid-template-columns: 330px 1fr; align-items: stretch; }
+
+.axis { background: var(--charcoal); color: var(--paper); }
+.axis .gname {
+  background: var(--charcoal);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border-right: 1px solid #3a3a3a;
+}
+.axis .days { display: flex; }
+.axis .day {
+  flex: 1 1 0;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 9px 0;
+  border-left: 1px solid #3a3a3a;
+  min-width: 0;
+}
+.axis .day:first-child { border-left: none; }
+
+.gname {
+  background: var(--white);
+  border-right: 1px solid var(--line);
+  padding: 11px 14px;
+  min-width: 0;
+}
+
+.sechead { background: var(--panel); border-top: 1px solid var(--line); }
+.sechead .gname,
+.sechead .track { background: var(--panel); }
+.sechead .gname {
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--orange-mid);
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+.sechead .num { color: var(--ink-3); margin-right: 8px; }
+
+.task { border-top: 1px solid var(--line-2); cursor: pointer; }
+.task:hover .gname,
+.task:hover .track { background: #FDFAF7; }
+.task.open .gname,
+.task.open .track { background: var(--orange-tint); }
+.task:focus-visible { outline: 2px solid var(--orange); outline-offset: -2px; }
+
+.task .gname { display: flex; gap: 10px; align-items: baseline; }
+.tw { min-width: 0; }
+.tid { font-family: var(--mono); font-size: 11px; color: var(--ink-3); flex: none; width: 30px; }
+.tname { font-size: 14.5px; font-weight: 500; line-height: 1.3; }
+.tmeta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+  margin-top: 3px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.caret { flex: none; color: var(--ink-3); font-size: 10px; margin-left: auto; padding-left: 8px; transition: transform 0.14s ease; }
+.task.open .caret { transform: rotate(90deg); color: var(--orange); }
+
+.track { position: relative; padding: 11px 0; min-height: 46px; }
+.track .bar {
+  --bar: var(--st-not);
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 22px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  background: var(--bar);
+  text-shadow: 0 1px 1px rgba(0,0,0,0.5);
+}
+.track .bar[data-status="in-progress"] { --bar: var(--st-prog); }
+.track .bar[data-status="complete"]    { --bar: var(--st-done); }
+.track .bar[data-status="blocked"]     { --bar: var(--st-block); }
+.track .bar[data-status="on-hold"]     { --bar: var(--st-hold); }
+.track .bar.prov {
+  background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.18) 0 6px, rgba(255,255,255,0) 6px 12px);
+  border: 1px dashed rgba(255,255,255,0.7);
+}
+
+/* No start_day / duration_days set. The bar spans the whole track so the
+   status colour still reads across the chart, but it is pale and dashed so it
+   is never mistaken for a dated bar. First background-color is the fallback
+   for browsers without color-mix. */
+.track .bar.nosched {
+  left: 2px;
+  right: 3px;
+  width: auto;
+  background-color: var(--panel);
+  background-color: color-mix(in srgb, var(--bar) 15%, #fff);
+  border: 1px dashed var(--bar);
+  color: var(--bar);
+  text-shadow: none;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ───────────────────────── detail panel ───────────────────────── */
+
+.detail {
+  display: none;
+  background: var(--panel);
+  border-top: 1px solid var(--orange-line);
+  border-bottom: 1px solid var(--line);
+  padding: 18px 22px 20px;
+}
+.detail.open { display: block; }
+
+.detail .lead {
+  font-size: 15px;
+  color: var(--ink);
+  max-width: 820px;
+  border-left: 3px solid var(--orange);
+  padding-left: 14px;
+  margin-bottom: 16px;
+}
+.dgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px 22px;
+}
+.df .k {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: block;
+  margin-bottom: 3px;
+}
+.df .v { font-size: 14px; color: var(--ink-2); }
+.df .v.empty { color: #B5ADA5; font-style: italic; }
+.df .v code, code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: #EFEAE4;
+  color: var(--orange-mid);
+  padding: 1px 4px;
+}
+
+/* Narrow screens: drop the bar track and read as a list. The day range still
+   shows in .tmeta, so no information is lost and the page never scrolls
+   sideways on a phone. */
+@media (max-width: 760px) {
+  .gantt-scroll { overflow-x: visible; }
+  .gantt { min-width: 0; }
+  .grow { grid-template-columns: 1fr; }
+  .axis .days, .grow .track { display: none; }
+  .gname, .axis .gname { border-right: none; }
+}
+
+/* ───────────────────────── legend ───────────────────────── */
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 12px; font-size: 12.5px; color: var(--ink-2); }
+.legend .li { display: flex; align-items: center; gap: 7px; }
+.legend .sw { width: 22px; height: 11px; background: var(--st-not); flex: none; }
+.legend .sw[data-s="in-progress"] { background: var(--st-prog); }
+.legend .sw[data-s="complete"]    { background: var(--st-done); }
+.legend .sw[data-s="blocked"]     { background: var(--st-block); }
+.legend .sw[data-s="on-hold"]     { background: var(--st-hold); }
+.legend .sw.prov {
+  background-color: var(--ink-3);
+  background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.4) 0 4px, rgba(255,255,255,0) 4px 8px);
+  border: 1px dashed var(--ink-3);
+}
+.legend .sw.nosched {
+  background-color: var(--panel);
+  background-color: color-mix(in srgb, var(--ink-3) 15%, #fff);
+  border: 1px dashed var(--ink-3);
+}
+
+/* ───────────────────────── edit mode ───────────────────────── */
+
+/* same "on" treatment as the filter chips, so the mode is obvious */
+#btn-edit[aria-pressed="true"] {
+  background: var(--charcoal);
+  border-color: var(--charcoal);
+  color: var(--paper);
+}
+
+.f-in, .f-sel, .f-area {
+  font-family: var(--sans);
+  font-size: 14px;
+  width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--white);
+  color: var(--ink);
+}
+.f-area { display: block; resize: vertical; line-height: 1.45; }
+.f-in:focus, .f-sel:focus, .f-area:focus { outline: 2px solid var(--orange); outline-offset: -1px; }
+.f-in.num { width: 92px; font-family: var(--mono); }
+.f-sel {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.f-sel[data-st="in-progress"] { color: var(--st-prog); }
+.f-sel[data-st="complete"]    { color: var(--st-done); }
+.f-sel[data-st="blocked"]     { color: var(--st-block); }
+.f-sel[data-st="on-hold"]     { color: var(--st-hold); }
+
+.flbl {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: block;
+  margin-bottom: 3px;
+}
+.edstack { display: grid; gap: 10px; }
+
+/* add and delete controls only exist while edit mode is on */
+.delbar { display: none; justify-content: flex-end; margin-top: 14px; }
+.addbar { display: none; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+body.editing .delbar { display: flex; }
+body.editing .addbar { display: flex; }
+
+.btn.danger { background: transparent; color: var(--st-block); border-color: #E3BCB9; }
+.btn.danger:hover { background: var(--st-block); border-color: var(--st-block); color: #fff; }
+.btn.add { background: transparent; color: var(--orange-mid); border-color: var(--orange-line); }
+.btn.add:hover { background: var(--orange); border-color: var(--orange); color: #fff; }
+.btn.addmini { font-size: 10px; padding: 4px 9px; letter-spacing: 0.04em; }
+
+/* the per-section "+ Task" button sits at the right of the section heading row */
+.sechead .gname { display: flex; align-items: center; gap: 6px; }
+.sechead .gname .addmini { margin-left: auto; }
+
+/* status / dates / crew pulled to the top of the detail panel — the fields
+   that get changed most often on site */
+.editrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  align-items: flex-end;
+  background: var(--white);
+  border: 1px solid var(--orange-line);
+  border-left: 4px solid var(--orange);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.editrow .fld { flex: 0 0 auto; }
+.editrow .fld.grow1 { flex: 1 1 180px; min-width: 150px; }
+.editrow .f-sel { width: auto; min-width: 150px; }
+
+.dgrid .df.wide { grid-column: 1 / -1; }
+.df .ro { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); }
+.df .hint { font-size: 11.5px; color: var(--ink-3); font-style: italic; margin-left: 6px; }
+
+.banner .ed-w { flex: 1 1 auto; min-width: 0; }
+
+/* ───────────────────────── completed section ───────────────────────── */
+
+.cnt2 {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  color: var(--ink-3);
+  margin-left: 10px;
+}
+
+.doneblock { margin-bottom: 8px; }
+.doneitem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--st-done);
+  padding: 11px 16px;
+  cursor: pointer;
+}
+.doneitem:hover { background: #FAFCF8; }
+.doneitem.open { background: #F3F7F0; }
+.doneitem:focus-visible { outline: 2px solid var(--orange); outline-offset: -2px; }
+.doneitem .tick { flex: none; color: var(--st-done); font-weight: 700; }
+.doneitem .tid { width: auto; }
+.doneitem .tw { flex: 1 1 240px; }
+.doneitem .caret {
+  flex: none;
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 10px;
+  color: var(--ink-3);
+  transition: transform 0.14s ease;
+}
+.doneitem.open .caret { transform: rotate(90deg); color: var(--st-done); }
+.doneblock .detail { border-top-color: #CFE0C6; }
+
+/* functional location tag — the schedule section the item came from */
+.loc {
+  flex: none;
+  align-self: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 3px 8px;
+}
+
+/* ───────────────────────── confirm list ───────────────────────── */
+
+.confirm-item {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--st-hold);
+  padding: 14px 18px;
+  margin-bottom: 10px;
+}
+.confirm-item h4 {
+  font-family: var(--cond);
+  font-size: 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.confirm-item p { font-size: 14.5px; color: var(--ink-2); }
+
+/* ───────────────────────── footer / status ───────────────────────── */
+
+.srcbar {
+  margin-top: 40px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  align-items: center;
+}
+.srcbar .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--st-not); display: inline-block; margin-right: 6px; }
+.srcbar .dot.live { background: var(--st-done); }
+.srcbar .dot.seed { background: var(--st-hold); }
+.srcbar .dot.err  { background: var(--st-block); }
+.srcbar .dot.edit { background: var(--orange); }
+
+.empty-state { padding: 40px 20px; text-align: center; color: var(--ink-3); font-size: 14px; }
+
+.dropzone {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(10,10,10,0.82);
+  color: var(--paper);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--cond);
+  font-size: 28px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 6px dashed var(--orange);
+}
+.dropzone.on { display: flex; }
+
+/* ───────────────────────── print ───────────────────────── */
+
+@media print {
+  body { background: #fff; font-size: 10pt; }
+  .toolbar, .dropzone, .btn { display: none !important; }
+  .masthead { background: #fff; color: #000; border-bottom: 3px solid var(--orange); }
+  .masthead .sub { color: #444; }
+  .metastrip { border-top-color: var(--line); }
+  .metastrip .k { color: #777; }
+  .gantt-scroll { overflow: visible; }
+  .gantt { min-width: 0; }
+  .detail { display: block !important; page-break-inside: avoid; }
+  .task, .confirm-item, .doneitem, .doneblock { page-break-inside: avoid; }
+  .caret { display: none; }
+  section { margin-top: 22px; }
+  /* edit-mode inputs print as plain text */
+  .f-in, .f-sel, .f-area { border: none !important; padding: 0 !important; background: transparent !important; }
+  .editrow { border: none; border-left: 3px solid var(--orange); padding: 0 0 0 10px; }
+}
+</style>
+</head>
+<body>
+
+<div class="dropzone" id="dropzone">Drop CSV to load</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow" id="m-eyebrow">WAL Engineering — Site Work Schedule</div>
+    <h1 id="m-title">Site Electrician Work Schedule</h1>
+    <p class="sub" id="m-subtitle"></p>
+    <div class="metastrip" id="m-strip"></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="banner" id="no-data" hidden>
+    <span class="tag">No data</span>
+    <span id="no-data-text"></span>
+  </div>
+
+  <div class="banner" id="schedule-note" hidden>
+    <span class="tag">Provisional</span>
+    <span id="schedule-note-text"></span>
+  </div>
+
+  <section id="sec-summary">
+    <h2>Status at a glance</h2>
+    <p class="h2note">Counts are taken from the <code>status</code> column of the schedule CSV.</p>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section id="sec-notes">
+    <h2>Notes</h2>
+    <div id="notes-list"></div>
+    <div class="addbar">
+      <button class="btn add" type="button" data-add="note">Add note</button>
+    </div>
+  </section>
+
+  <section id="sec-schedule">
+    <h2>Work schedule</h2>
+    <p class="h2note">Select any task to open its detail. Days are relative — Day 1 is the first day on site.
+      Tasks with no start day are marked <em>anytime</em> and still carry their status colour, shown as a pale
+      bar across the full track. Completed items are listed in the <em>Completed</em> section below.</p>
+
+    <div class="toolbar">
+      <div class="grp" id="filter-status" role="group" aria-label="Filter by status"></div>
+      <div class="grp">
+        <label class="srconly" for="q">Search tasks</label>
+        <input type="search" id="q" placeholder="Search tasks, tags, references…" />
+      </div>
+      <div class="spacer"></div>
+      <div class="grp">
+        <button class="btn" id="btn-edit" type="button" aria-pressed="false">Edit</button>
+        <button class="btn ghost" id="btn-expand" type="button">Expand all</button>
+        <button class="btn ghost" id="btn-collapse" type="button">Collapse all</button>
+        <button class="btn ghost" id="btn-print" type="button">Print</button>
+        <button class="btn ghost" id="btn-export" type="button">Export CSV</button>
+        <button class="btn ghost" id="btn-load" type="button">Load CSV file</button>
+        <button class="btn ghost" id="btn-undo" type="button" hidden>Undo delete</button>
+        <input type="file" id="file" accept=".csv,text/csv" class="srconly" />
+      </div>
+    </div>
+
+    <div class="gantt-scroll">
+      <div class="gantt" id="gantt"></div>
+    </div>
+
+    <div class="addbar">
+      <button class="btn add" type="button" data-add="section">Add section</button>
+    </div>
+
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section id="sec-completed" hidden>
+    <h2>Completed<span class="cnt2" id="done-count"></span></h2>
+    <p class="h2note">Closed-out items, moved off the live schedule. The tag on each row is the schedule section
+      the item belongs to. Select a row to open its detail; change the status back in edit mode to return it to
+      the schedule above.</p>
+    <div id="done-list"></div>
+    <div class="addbar">
+      <button class="btn add" type="button" data-add="done">Add completed item</button>
+    </div>
+  </section>
+
+  <section id="sec-confirm">
+    <h2>Requires confirmation before scheduling</h2>
+    <p class="h2note">Identified in the audit, but the site electrician boundary is not settled. Not on the schedule above.</p>
+    <div id="confirm-list"></div>
+    <div class="addbar">
+      <button class="btn add" type="button" data-add="confirm">Add item</button>
+    </div>
+  </section>
+
+  <section id="sec-gaps">
+    <h2>Not yet populated</h2>
+    <div id="gaps-body">
+      <div class="banner neutral">
+        <span class="tag">Open</span>
+        <span>
+          Task durations and resourcing · sequencing and dependencies · isolation and permit requirements per task ·
+          sign-off and hold points. These fields exist in the CSV and render as
+          <em>not yet defined</em> until filled in.
+        </span>
+      </div>
+      <div class="delbar">
+        <button class="btn danger" id="btn-del-gaps" type="button">Delete section</button>
+      </div>
+    </div>
+    <div class="addbar" id="gaps-restore" hidden>
+      <button class="btn add" id="btn-restore-gaps" type="button">Restore this section</button>
+    </div>
+  </section>
+
+  <div class="srcbar" id="srcbar"></div>
+
+</div>
+
+
+<script>
+(function () {
+  'use strict';
+
+  /* ══════════════════════════════════════════════════════════════════════
+     CONFIG — set CSV_URL to a published CSV to have this page load by itself.
+     Left empty (''), the page tries LOCAL_CSV beside it and, when the browser
+     blocks that, waits for "Load CSV file". There is no built-in copy of the
+     data. See the comment block in <head> for how to publish from Google Sheets.
+     ══════════════════════════════════════════════════════════════════════ */
+  var CSV_URL   = '';
+  var LOCAL_CSV = 'TLOFeeder_WorkSchedule.csv';
+
+  var COLS = ['type','id','section','section_title','task','start_day','duration_days',
+              'provisional','status','crew','description','reference','prerequisites',
+              'isolation','permit','hold_point','notes'];
+
+  var STATUSES = [
+    { k: 'not-started', label: 'Not started' },
+    { k: 'in-progress', label: 'In progress' },
+    { k: 'complete',    label: 'Complete' },
+    { k: 'blocked',     label: 'Blocked' },
+    { k: 'on-hold',     label: 'On hold' }
+  ];
+
+  var STATUS_OPTS = [{ k: '', label: '— not set —' }].concat(STATUSES);
+  var PROV_OPTS = [
+    { k: '',    label: '— not set —' },
+    { k: 'yes', label: 'Yes — provisional' },
+    { k: 'no',  label: 'No — confirmed' }
+  ];
+
+  /* Columns that change what the schedule looks like, so the page is redrawn
+     when they are committed. Everything else is just stored. */
+  var LAYOUT_COLS = { id: 1, status: 1, start_day: 1, duration_days: 1, provisional: 1,
+                      section: 1, section_title: 1, task: 1, crew: 1 };
+
+  var state = { rows: [], filter: 'all', query: '', open: {}, source: '', edit: false, dirty: false };
+
+  /* Static sections deleted on the page. Not CSV-backed, so this resets
+     whenever a CSV is loaded. */
+  var hidden = {};
+
+  /* One step of undo, so a mis-click on a delete is recoverable without
+     throwing away every other edit. */
+  var undoSnapshot = null;
+
+  /* Runtime-only handle on each row. Which detail panels are open is tracked
+     against this, not against the task id, so the id is just another editable
+     field and duplicate or renamed ids cannot break the page. Not exported. */
+  var uidSeq = 0;
+
+  /* ─────────────── CSV parse (RFC4180) ─────────────── */
+
+  function parseCSV(text) {
+    text = text.replace(/^\uFEFF/, '');
+    var rows = [], row = [], field = '', i = 0, inQ = false, c;
+    while (i < text.length) {
+      c = text[i];
+      if (inQ) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+          inQ = false; i++; continue;
+        }
+        field += c; i++; continue;
+      }
+      if (c === '"') { inQ = true; i++; continue; }
+      if (c === ',') { row.push(field); field = ''; i++; continue; }
+      if (c === '\r') { i++; continue; }
+      if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+      field += c; i++;
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    if (!rows.length) return [];
+
+    var head = rows[0].map(function (h) { return h.trim().toLowerCase(); });
+    return rows.slice(1)
+      .filter(function (r) { return r.some(function (v) { return v.trim() !== ''; }); })
+      .map(function (r) {
+        var o = {};
+        head.forEach(function (h, n) { o[h] = (r[n] === undefined ? '' : r[n]).trim(); });
+        return o;
+      });
+  }
+
+  function toCSV(rows) {
+    var esc = function (v) {
+      v = v === undefined || v === null ? '' : String(v);
+      return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    };
+    var out = [COLS.join(',')];
+    rows.forEach(function (r) { out.push(COLS.map(function (c) { return esc(r[c]); }).join(',')); });
+    return out.join('\r\n') + '\r\n';
+  }
+
+  /* ─────────────── helpers ─────────────── */
+
+  function $(s) { return document.querySelector(s); }
+  function esc(s) {
+    return String(s === undefined || s === null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* Render equipment tags / module codes as inline code. Matches things like
+     TLO_MCC01, FDRPLC00A, 1769-PB2, Rack0.Slot3, I:0/01, I1:00 */
+  var TAG_RE = /\b(?:[A-Z][A-Z0-9]*_[A-Z0-9_]+|[A-Z]{2,}[A-Z0-9]*\d[A-Z0-9]*|\d{4}-[A-Z0-9]+|Rack\d+\.Slot\d+|I:\d+\/\d+|I\d+:\d+)\b/g;
+  function fmt(s) {
+    return esc(s).replace(TAG_RE, function (m) { return '<code>' + m + '</code>'; });
+  }
+
+  function by(type) { return state.rows.filter(function (r) { return r.type === type; }); }
+  function meta(key) {
+    var r = state.rows.filter(function (x) { return x.type === 'meta' && x.id === key; })[0];
+    return r ? r.description : '';
+  }
+  function statusOf(r) {
+    return rawStatus(r) || 'not-started';
+  }
+  /* statusOf() falls back to not-started for display. rawStatus() keeps a blank
+     status blank, so editing a row does not silently invent a status for the
+     items that are deliberately unconfirmed (see note n2). */
+  function rawStatus(r) {
+    var s = (r.status || '').toLowerCase().replace(/\s+/g, '-');
+    return STATUSES.some(function (x) { return x.k === s; }) ? s : '';
+  }
+  function rawProv(r) {
+    var p = (r.provisional || '').toLowerCase();
+    return /^y/.test(p) ? 'yes' : /^n/.test(p) ? 'no' : '';
+  }
+  function num(v) { var n = parseFloat(v); return isFinite(n) ? n : null; }
+
+  /* ─────────────── editable field builders ─────────────── */
+
+  /* data-r is the row index in state.rows, data-c the column. The pair is the
+     handle used by the input/change handlers and by focus restore after a redraw. */
+  function at(r, col) { return 'data-r="' + r._i + '" data-c="' + col + '"'; }
+
+  function inText(r, col, ph) {
+    return '<input type="text" class="f-in" ' + at(r, col) +
+      ' value="' + esc(r[col] || '') + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + ' />';
+  }
+  function inNum(r, col) {
+    return '<input type="number" min="1" step="1" class="f-in num" ' + at(r, col) +
+      ' value="' + esc(r[col] || '') + '" placeholder="—" />';
+  }
+  function inArea(r, col, rows) {
+    return '<textarea class="f-area" rows="' + (rows || 3) + '" ' + at(r, col) + '>' +
+      esc(r[col] || '') + '</textarea>';
+  }
+  function inSelect(r, col, opts, cur) {
+    return '<select class="f-sel" ' + at(r, col) +
+      (col === 'status' ? ' data-st="' + esc(cur) + '"' : '') + '>' +
+      opts.map(function (o) {
+        return '<option value="' + esc(o.k) + '"' + (o.k === cur ? ' selected' : '') +
+          '>' + esc(o.label) + '</option>';
+      }).join('') + '</select>';
+  }
+  function edf(label, control) {
+    return '<label class="edf"><span class="flbl">' + esc(label) + '</span>' + control + '</label>';
+  }
+  /* text = button caption, what = how the row is named in the confirm prompt */
+  function delBtn(r, text, what) {
+    return '<div class="delbar"><button type="button" class="btn danger" data-del="' + r._i +
+      '" data-what="' + esc(what) + '">' + esc(text) + '</button></div>';
+  }
+
+  /* ─────────────── render ─────────────── */
+
+  function renderHeader() {
+    var t = meta('doc_title'), s = meta('doc_subtitle'), e = meta('doc_eyebrow');
+    if (t) { $('#m-title').textContent = t; document.title = t; }
+    if (e) $('#m-eyebrow').textContent = e;
+    $('#m-subtitle').textContent = s || '';
+
+    var fields = [
+      ['Client', meta('client')],
+      ['Contractor', meta('contractor')],
+      ['Source', meta('source_ref')],
+      ['Doc ref', meta('doc_ref')],
+      ['Revision', meta('revision')],
+      ['Updated', meta('updated')]
+    ].filter(function (f) { return f[1]; });
+
+    $('#m-strip').innerHTML = fields.map(function (f) {
+      return '<div class="m"><span class="k">' + esc(f[0]) + '</span><span class="v">' + esc(f[1]) + '</span></div>';
+    }).join('');
+
+    var note = meta('schedule_note');
+    $('#schedule-note').hidden = !note;
+    $('#schedule-note-text').textContent = note;
+  }
+
+  function renderNotes() {
+    var rows = by('note');
+    // stay visible while editing so the add button is reachable with none left
+    $('#sec-notes').hidden = !rows.length && !state.edit;
+
+    $('#notes-list').innerHTML = rows.map(function (r) {
+      if (state.edit) {
+        return '<div class="banner"><span class="tag">Note</span><span class="ed-w edstack">' +
+          edf('Note text', inArea(r, 'description', 3)) +
+          edf('Reference', inText(r, 'reference', '')) +
+          delBtn(r, 'Delete note', 'note ' + r.id) +
+          '</span></div>';
+      }
+      return '<div class="banner"><span class="tag">Note</span><span>' + fmt(r.description) +
+        (r.reference ? ' <span style="opacity:.7">(' + esc(r.reference) + ')</span>' : '') + '</span></div>';
+    }).join('');
+  }
+
+  function renderTiles() {
+    var tasks = by('task');
+    $('#sec-summary').hidden = !state.rows.length;
+    var cells = [{ s: 'total', n: tasks.length, l: 'Tasks' }];
+    STATUSES.forEach(function (st) {
+      var n = tasks.filter(function (t) { return statusOf(t) === st.k; }).length;
+      if (n || st.k === 'not-started' || st.k === 'complete') cells.push({ s: st.k, n: n, l: st.label });
+    });
+    $('#tiles').innerHTML = cells.map(function (c) {
+      return '<div class="tile" data-s="' + c.s + '"><div class="n">' + c.n + '</div><div class="l">' + c.l + '</div></div>';
+    }).join('');
+  }
+
+  /* Complete is not offered as a filter - completed work lives in its own
+     section, so the chips only ever act on what is still open. */
+  function renderFilters() {
+    var tasks = openTasks();
+    var opts = [{ k: 'all', label: 'All open', n: tasks.length }].concat(
+      STATUSES.filter(function (st) { return st.k !== 'complete'; }).map(function (st) {
+        return { k: st.k, label: st.label, n: tasks.filter(function (t) { return statusOf(t) === st.k; }).length };
+      }).filter(function (o) { return o.n > 0; })
+    );
+    // the selected status may have just been emptied - do not leave a blank view
+    if (!opts.some(function (o) { return o.k === state.filter; })) state.filter = 'all';
+
+    $('#filter-status').innerHTML = opts.map(function (o) {
+      return '<button type="button" class="chip" data-f="' + o.k + '" aria-pressed="' +
+        (state.filter === o.k) + '">' + esc(o.label) + '<span class="cnt">' + o.n + '</span></button>';
+    }).join('');
+  }
+
+  function matchQuery(t) {
+    var q = state.query.toLowerCase();
+    if (!q) return true;
+    return COLS.some(function (c) { return (t[c] || '').toLowerCase().indexOf(q) !== -1; });
+  }
+  function openTasks() {
+    return by('task').filter(function (t) { return statusOf(t) !== 'complete'; });
+  }
+  function doneTasks() {
+    return by('task').filter(function (t) { return statusOf(t) === 'complete'; });
+  }
+  function visibleTasks() {
+    return openTasks().filter(function (t) {
+      if (state.filter !== 'all' && statusOf(t) !== state.filter) return false;
+      return matchQuery(t);
+    });
+  }
+
+  function detailRead(t) {
+    var fields = [
+      ['Reference', t.reference],
+      ['Crew', t.crew],
+      ['Prerequisites', t.prerequisites],
+      ['Isolation required', t.isolation],
+      ['Permit required', t.permit],
+      ['Hold point / sign-off', t.hold_point],
+      ['Schedule', (num(t.start_day) !== null && num(t.duration_days) !== null)
+        ? 'Day ' + num(t.start_day) + ' — Day ' + (num(t.start_day) + num(t.duration_days) - 1) +
+          ' (' + num(t.duration_days) + (num(t.duration_days) === 1 ? ' day' : ' days') + ')' +
+          (/^y/i.test(t.provisional) ? ' · provisional' : '')
+        : ''],
+      ['Status', (STATUSES.filter(function (s) { return s.k === statusOf(t); })[0] || {}).label],
+      ['Notes', t.notes]
+    ];
+    return (t.description ? '<div class="lead">' + fmt(t.description) + '</div>' : '') +
+      '<div class="dgrid">' + fields.map(function (f) {
+        var v = (f[1] || '').trim();
+        return '<div class="df"><span class="k">' + esc(f[0]) + '</span>' +
+          '<span class="v' + (v ? '' : ' empty') + '">' + (v ? fmt(v) : 'Not yet defined') + '</span></div>';
+      }).join('') + '</div>';
+  }
+
+  function detailEdit(t) {
+    // labels wrap their control, so the caption is clickable and read out with it
+    var df = function (label, control, wide) {
+      return '<label class="df' + (wide ? ' wide' : '') + '"><span class="k">' + esc(label) + '</span>' +
+        control + '</label>';
+    };
+    var fld = function (label, control, grow) {
+      return '<label class="fld' + (grow ? ' grow1' : '') + '"><span class="flbl">' + esc(label) + '</span>' +
+        control + '</label>';
+    };
+    return '<div class="editrow">' +
+        fld('Status', inSelect(t, 'status', STATUS_OPTS, rawStatus(t))) +
+        fld('Start day', inNum(t, 'start_day')) +
+        fld('Duration (days)', inNum(t, 'duration_days')) +
+        fld('Dates provisional', inSelect(t, 'provisional', PROV_OPTS, rawProv(t))) +
+        fld('Crew', inText(t, 'crew', 'Unassigned'), true) +
+      '</div>' +
+      '<div class="dgrid">' +
+        df('Task name', inText(t, 'task'), true) +
+        df('Description', inArea(t, 'description', 3), true) +
+        df('Task ID', inText(t, 'id')) +
+        df('Section number', inText(t, 'section')) +
+        df('Section title', inText(t, 'section_title')) +
+        df('Reference', inText(t, 'reference')) +
+        df('Prerequisites', inText(t, 'prerequisites')) +
+        df('Isolation required', inText(t, 'isolation')) +
+        df('Permit required', inText(t, 'permit')) +
+        df('Hold point / sign-off', inText(t, 'hold_point')) +
+        df('Notes', inArea(t, 'notes', 2), true) +
+      '</div>' +
+      delBtn(t, 'Delete task', 'task ' + t.id + ' — ' + t.task);
+  }
+
+  function detailHTML(t) {
+    return '<div class="detail' + (state.open[t._u] ? ' open' : '') +
+      '" role="region" aria-label="Detail for task ' + esc(t.id) + '">' +
+      (state.edit ? detailEdit(t) : detailRead(t)) + '</div>';
+  }
+
+  function renderGantt() {
+    var tasks = visibleTasks();
+    var g = $('#gantt');
+
+    if (!tasks.length) {
+      g.innerHTML = '<div class="empty-state">' + (state.rows.length
+        ? 'No open tasks match the current filter.'
+        : 'No schedule loaded. Press "Load CSV file" above, or drag the CSV onto the page.') + '</div>';
+      return;
+    }
+
+    var maxDay = 1;
+    openTasks().forEach(function (t) {
+      var s = num(t.start_day), d = num(t.duration_days);
+      if (s !== null && d !== null) maxDay = Math.max(maxDay, s + d - 1);
+    });
+    maxDay = Math.max(maxDay, 5);
+
+    var step = maxDay > 30 ? 5 : 1;
+    var days = '';
+    for (var d = 1; d <= maxDay; d++) {
+      days += '<div class="day">' + ((d === 1 || d % step === 0) ? d : '') + '</div>';
+    }
+    var html = '<div class="grow axis"><div class="gname">Task</div>' +
+               '<div class="days">' + days + '</div></div>';
+
+    var grid = 'background-image:repeating-linear-gradient(to right,var(--line-2) 0 1px,transparent 1px calc(100%/' + maxDay + '))';
+
+    // group by section, preserving CSV order
+    var order = [], groups = {};
+    tasks.forEach(function (t) {
+      var key = t.section || '—';
+      if (!groups[key]) { groups[key] = { title: t.section_title, items: [] }; order.push(key); }
+      groups[key].items.push(t);
+    });
+
+    order.forEach(function (key) {
+      var grp = groups[key];
+      var sec = key === '—' ? '' : key;
+      html += '<div class="grow sechead"><div class="gname"><span class="num">' + esc(key) + '</span>' +
+              esc(grp.title || '') +
+              (state.edit ? '<button type="button" class="btn add addmini" data-add="task" data-section="' +
+                 esc(sec) + '" data-title="' + esc(grp.title || '') + '">+ Task</button>' : '') +
+              '</div><div class="track" style="' + grid + '"></div></div>';
+
+      grp.items.forEach(function (t) {
+        var s = num(t.start_day), dur = num(t.duration_days), st = statusOf(t);
+        var isOpen = !!state.open[t._u];
+        var dated = (s !== null && dur !== null && dur > 0);
+        var prov = /^y/i.test(t.provisional);
+        var bar;
+        if (dated) {
+          var left = ((s - 1) / maxDay) * 100, width = (dur / maxDay) * 100;
+          bar = '<div class="bar' + (prov ? ' prov' : '') + '" data-status="' + st +
+                '" style="left:' + left.toFixed(4) + '%;width:calc(' + width.toFixed(4) + '% - 3px)">' +
+                'D' + s + '–D' + (s + dur - 1) + '</div>';
+        } else {
+          // No start day set. Still draw a bar so the status colour reads across
+          // the chart. Not flagged provisional - there are no dates to qualify.
+          bar = '<div class="bar nosched" data-status="' + st + '">Anytime</div>';
+        }
+
+        var flags = [dated ? 'D' + s + '–D' + (s + dur - 1) : 'anytime'];
+        if (dated && prov) flags.push('provisional');
+        if (t.crew) flags.push(esc(t.crew));
+
+        html += '<div class="grow task' + (isOpen ? ' open' : '') + '" data-uid="' + t._u +
+                '" role="button" tabindex="0" aria-expanded="' + isOpen + '">' +
+                  '<div class="gname">' +
+                    '<span class="tid">' + esc(t.id) + '</span>' +
+                    '<span class="tw"><span class="tname">' + esc(t.task) + '</span>' +
+                      (flags.length ? '<span class="tmeta">' + flags.join(' · ') + '</span>' : '') +
+                    '</span>' +
+                    '<span class="caret" aria-hidden="true">&#9654;</span>' +
+                  '</div>' +
+                  '<div class="track" style="' + grid + '">' + bar + '</div>' +
+                '</div>' +
+                detailHTML(t);
+      });
+    });
+
+    g.innerHTML = html;
+  }
+
+  /* Completed work is lifted out of the schedule above and listed here, each
+     item tagged with the section it came from so its place in the works is
+     still obvious once it is off the chart. */
+  function renderCompleted() {
+    var all = doneTasks();
+    var rows = all.filter(matchQuery);
+
+    // stay visible while editing so the add button is reachable with none left
+    $('#sec-completed').hidden = !all.length && !state.edit;
+    $('#done-count').textContent = all.length + (all.length === 1 ? ' item' : ' items');
+    if (!all.length) { $('#done-list').innerHTML = ''; return; }
+
+    if (!rows.length) {
+      $('#done-list').innerHTML = '<div class="empty-state">No completed items match the current search.</div>';
+      return;
+    }
+
+    $('#done-list').innerHTML = rows.map(function (t) {
+      var isOpen = !!state.open[t._u];
+      var loc = [t.section, t.section_title].filter(Boolean).join(' · ') || 'Unsectioned';
+      var s = num(t.start_day), dur = num(t.duration_days);
+      var flags = [];
+      if (s !== null && dur !== null && dur > 0) flags.push('D' + s + '–D' + (s + dur - 1));
+      if (t.crew) flags.push(esc(t.crew));
+
+      return '<div class="doneblock">' +
+        '<div class="doneitem' + (isOpen ? ' open' : '') + '" data-uid="' + t._u +
+          '" role="button" tabindex="0" aria-expanded="' + isOpen + '">' +
+          '<span class="tick" aria-hidden="true">&#10003;</span>' +
+          '<span class="loc">' + esc(loc) + '</span>' +
+          '<span class="tid">' + esc(t.id) + '</span>' +
+          '<span class="tw"><span class="tname">' + esc(t.task) + '</span>' +
+            (flags.length ? '<span class="tmeta">' + flags.join(' · ') + '</span>' : '') +
+          '</span>' +
+          '<span class="caret" aria-hidden="true">&#9654;</span>' +
+        '</div>' +
+        detailHTML(t) +
+      '</div>';
+    }).join('');
+  }
+
+  function renderLegend() {
+    var items = STATUSES.filter(function (s) { return s.k !== 'complete'; }).map(function (s) {
+      return '<span class="li"><span class="sw" data-s="' + s.k + '"></span>' + s.label + '</span>';
+    });
+    items.push('<span class="li"><span class="sw" data-s="complete"></span>Complete — listed in the Completed section</span>');
+    items.push('<span class="li"><span class="sw prov"></span>Hatched = provisional dates</span>');
+    items.push('<span class="li"><span class="sw nosched"></span>Pale = anytime, no start day set</span>');
+    $('#legend').innerHTML = items.join('');
+  }
+
+  function renderConfirm() {
+    var rows = by('confirm');
+    $('#sec-confirm').hidden = !rows.length && !state.edit;
+    $('#confirm-list').innerHTML = rows.map(function (r) {
+      if (state.edit) {
+        return '<div class="confirm-item edstack">' +
+          edf('Item', inText(r, 'task', '')) +
+          edf('Detail', inArea(r, 'description', 3)) +
+          edf('Reference', inText(r, 'reference', '')) +
+          delBtn(r, 'Delete item', 'item "' + (r.task || r.id) + '"') +
+          '</div>';
+      }
+      return '<div class="confirm-item"><h4>' + esc(r.task || r.id) + '</h4><p>' + fmt(r.description) + '</p></div>';
+    }).join('');
+  }
+
+  function renderSource() {
+    var kind = state.source.kind;
+    var cls = kind === 'url' ? 'live' : kind === 'error' ? 'err' : 'seed';
+    var bits = [
+      '<span><span class="dot ' + cls + '"></span>' + esc(state.source.label) + '</span>',
+      '<span>Rendered ' + new Date().toLocaleString('en-AU') + '</span>',
+      '<span>' + openTasks().length + ' open · ' + doneTasks().length + ' complete</span>'
+    ];
+    if (state.dirty) bits.push('<span>Unsaved edits — press Export CSV</span>');
+    $('#srcbar').innerHTML = bits.join('');
+
+    var undo = $('#btn-undo');
+    undo.hidden = !undoSnapshot;
+    undo.title = undoSnapshot ? 'Restore ' + undoSnapshot.what : '';
+  }
+
+  /* Every change goes through here, so the footer and the leave-the-page
+     warning always agree about whether there is work to export. */
+  function touch() {
+    state.dirty = true;
+    renderSource();
+  }
+
+  /* Deleted, the whole section goes. In edit mode the heading stays behind with
+     a restore button, so it can be brought back. */
+  function renderGaps() {
+    var gone = !!hidden.gaps;
+    $('#sec-gaps').hidden = !state.rows.length || (gone && !state.edit);
+    $('#gaps-body').hidden = gone;
+    $('#gaps-restore').hidden = !gone;
+  }
+
+  function renderAll() {
+    renderHeader(); renderNotes(); renderTiles(); renderFilters(); renderGantt();
+    renderCompleted(); renderLegend(); renderConfirm(); renderGaps(); renderSource();
+  }
+
+  /* ─────────────── delete / undo ─────────────── */
+
+  function reindex() { state.rows.forEach(function (r, i) { r._i = i; }); }
+
+  function copyHidden() {
+    var o = {};
+    for (var k in hidden) { if (Object.prototype.hasOwnProperty.call(hidden, k)) o[k] = hidden[k]; }
+    return o;
+  }
+
+  /* Shallow copy - the row objects are shared, so later edits to rows that
+     survived are kept when the deleted one is put back. */
+  function snapshot(what) {
+    undoSnapshot = { rows: state.rows.slice(), hidden: copyHidden(), what: what };
+  }
+
+  function deleteRow(handle, what) {
+    var r = state.rows[+handle];
+    if (!r) return;
+    if (!window.confirm('Delete ' + what + '?\n\nIt is removed from the working copy on this page. "Undo delete" puts it back.')) return;
+    snapshot(what);
+    state.rows = state.rows.filter(function (x) { return x !== r; });
+    reindex();
+    touch();
+    renderAll();
+  }
+
+  /* ─────────────── add ─────────────── */
+
+  function newRow(type) {
+    var r = { _u: 'u' + (++uidSeq) };
+    COLS.forEach(function (c) { r[c] = ''; });
+    r.type = type;
+    return r;
+  }
+
+  /* Next free id inside a section (2 -> 2.6). Sectionless rows get a plain
+     placeholder - the id field is editable, so it is only a starting point. */
+  function nextTaskId(section) {
+    var ids = by('task').map(function (t) { return t.id; });
+    if (section) {
+      var max = 0;
+      ids.forEach(function (id) {
+        var m = /^(.+)\.(\d+)$/.exec(id);
+        if (m && m[1] === section) max = Math.max(max, +m[2]);
+      });
+      return section + '.' + (max + 1);
+    }
+    var n = 1;
+    while (ids.indexOf('new-' + n) !== -1) n++;
+    return 'new-' + n;
+  }
+
+  function nextId(type, prefix) {
+    var ids = by(type).map(function (r) { return r.id; });
+    var n = 1;
+    while (ids.indexOf(prefix + n) !== -1) n++;
+    return prefix + n;
+  }
+
+  function nextSection() {
+    var max = 0;
+    by('task').forEach(function (t) {
+      var n = parseInt(t.section, 10);
+      if (isFinite(n)) max = Math.max(max, n);
+    });
+    return String(max + 1);
+  }
+
+  // keep the CSV grouped the way it was written - drop the row in beside its kind
+  function insertAfterLast(row, match) {
+    var idx = -1;
+    state.rows.forEach(function (r, i) { if (match(r)) idx = i; });
+    if (idx === -1) state.rows.push(row);
+    else state.rows.splice(idx + 1, 0, row);
+    reindex();
+  }
+
+  function focusField(row, col) {
+    var el = document.querySelector('[data-r="' + row._i + '"][data-c="' + col + '"]');
+    if (!el) return;
+    if (el.scrollIntoView) el.scrollIntoView({ block: 'center' });
+    el.focus();
+  }
+
+  function addRow(kind, section, title) {
+    var row, focusCol;
+
+    if (kind === 'note' || kind === 'confirm') {
+      row = newRow(kind);
+      row.id = nextId(kind, kind === 'note' ? 'n' : 'c');
+      focusCol = kind === 'note' ? 'description' : 'task';
+      insertAfterLast(row, function (r) { return r.type === kind; });
+    } else {
+      row = newRow('task');
+      row.section = kind === 'section' ? nextSection() : (section || '');
+      row.section_title = kind === 'section' ? '' : (title || '');
+      row.status = kind === 'done' ? 'complete' : 'not-started';
+      row.id = nextTaskId(row.section);
+      focusCol = 'task';
+      insertAfterLast(row, row.section
+        ? function (r) { return r.type === 'task' && r.section === row.section; }
+        : function (r) { return r.type === 'task'; });
+
+      // a filter or search left over from before would hide the new row
+      if (state.query) { state.query = ''; $('#q').value = ''; }
+      if (state.filter !== 'all' && state.filter !== statusOf(row)) state.filter = 'all';
+    }
+
+    state.open[row._u] = true;
+    touch();
+    renderAll();
+    focusField(row, focusCol);
+  }
+
+  /* ─────────────── data loading ─────────────── */
+
+  function applyCSV(text, source) {
+    var rows = parseCSV(text);
+    if (!rows.length) throw new Error('CSV contained no data rows');
+    rows.forEach(function (r, i) { r._i = i; r._u = 'u' + (++uidSeq); });
+    state.open = {};
+    state.rows = rows;
+    state.source = source;
+    state.dirty = false;
+    hidden = {};
+    undoSnapshot = null;
+    $('#no-data').hidden = true;
+    renderAll();
+  }
+
+  /* No data at all. Say why rather than rendering an empty shell. */
+  function showNoData(reason) {
+    state.rows = [];
+    state.source = { kind: 'error', label: reason };
+    $('#no-data-text').textContent = reason;
+    $('#no-data').hidden = false;
+    renderAll();
+  }
+
+  function fetchCSV(url) {
+    return fetch(url, { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    });
+  }
+
+  function boot() {
+    var tryUrl = CSV_URL
+      ? fetchCSV(CSV_URL).then(function (t) { applyCSV(t, { kind: 'url', label: 'Live — ' + CSV_URL }); })
+      : Promise.reject(new Error('no url'));
+
+    tryUrl.catch(function () {
+      return fetchCSV(LOCAL_CSV).then(function (t) {
+        applyCSV(t, { kind: 'url', label: 'Loaded from ' + LOCAL_CSV });
+      });
+    }).catch(function () {
+      showNoData(CSV_URL
+        ? 'Could not reach ' + CSV_URL + '. Press "Load CSV file" and pick ' + LOCAL_CSV + ', or drag it onto the page.'
+        : 'Browsers will not let a page opened from a file read ' + LOCAL_CSV + ' by itself. Press "Load CSV file" and pick it, or drag it onto the page.');
+    });
+  }
+
+  /* ─────────────── events ─────────────── */
+
+  document.addEventListener('click', function (e) {
+    var del = e.target.closest('[data-del]');
+    if (del) { deleteRow(del.dataset.del, del.dataset.what); return; }
+
+    var add = e.target.closest('[data-add]');
+    if (add) { addRow(add.dataset.add, add.dataset.section, add.dataset.title); return; }
+
+    var chip = e.target.closest('.chip[data-f]');
+    if (chip) { state.filter = chip.dataset.f; renderFilters(); renderGantt(); return; }
+
+    var row = e.target.closest('.task');
+    if (row) {
+      var uid = row.dataset.uid;
+      state.open[uid] = !state.open[uid];
+      renderGantt();
+      if (state.open[uid]) {
+        var el = document.querySelector('.task[data-uid="' + uid + '"]');
+        if (el) el.focus();
+        // on narrow screens the gantt is scrolled right; bring the detail text back into view
+        $('.gantt-scroll').scrollLeft = 0;
+      }
+      return;
+    }
+
+    var done = e.target.closest('.doneitem');
+    if (done) {
+      var duid = done.dataset.uid;
+      state.open[duid] = !state.open[duid];
+      renderCompleted();
+      if (state.open[duid]) {
+        var de = document.querySelector('.doneitem[data-uid="' + duid + '"]');
+        if (de) de.focus();
+      }
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var row = e.target.closest && e.target.closest('.task, .doneitem');
+    if (!row) return;
+    e.preventDefault();
+    row.click();
+  });
+
+  /* ─────────────── field editing ─────────────── */
+
+  var saveTimer = null, redrawPending = false;
+
+  function fieldEl(e) {
+    var el = e.target;
+    return (el && el.matches && el.matches('[data-r][data-c]')) ? el : null;
+  }
+  function writeField(el) {
+    var r = state.rows[+el.dataset.r];
+    if (!r) return null;
+    r[el.dataset.c] = el.value;
+    return r;
+  }
+
+  /* Redraw on the next tick, then put the caret back. By then the browser has
+     finished moving focus (tabbing out of a field fires change before the next
+     field is focused), so restoring to whatever is active does not fight it. */
+  function scheduleRedraw() {
+    if (redrawPending) return;
+    redrawPending = true;
+    setTimeout(function () {
+      redrawPending = false;
+      var ae = document.activeElement, k = null;
+      if (ae && ae.dataset && ae.dataset.r !== undefined && ae.dataset.c) {
+        var pos = null;   // selects and number inputs have no caret position
+        try { pos = ae.selectionStart; } catch (err) {}
+        k = { r: ae.dataset.r, c: ae.dataset.c, p: typeof pos === 'number' ? pos : null };
+      }
+      renderTiles(); renderFilters(); renderGantt(); renderCompleted(); renderSource();
+      if (k) {
+        var el = document.querySelector('[data-r="' + k.r + '"][data-c="' + k.c + '"]');
+        if (el) {
+          el.focus();
+          if (k.p !== null) { try { el.setSelectionRange(k.p, k.p); } catch (err) {} }
+        }
+      }
+    }, 0);
+  }
+
+  document.addEventListener('input', function (e) {
+    var el = fieldEl(e);
+    if (!el || !writeField(el)) return;
+    touch();
+  });
+
+  document.addEventListener('change', function (e) {
+    var el = fieldEl(e);
+    if (!el) return;
+    var r = writeField(el);
+    if (!r) return;
+    touch();
+    if (r.type === 'task' && LAYOUT_COLS[el.dataset.c]) scheduleRedraw();
+  });
+
+  $('#btn-edit').addEventListener('click', function () {
+    state.edit = !state.edit;
+    this.textContent = state.edit ? 'Done editing' : 'Edit';
+    this.setAttribute('aria-pressed', String(state.edit));
+    document.body.classList.toggle('editing', state.edit);
+    renderNotes(); renderGantt(); renderCompleted(); renderConfirm(); renderGaps();
+  });
+
+  $('#btn-del-gaps').addEventListener('click', function () {
+    if (!window.confirm('Delete the "Not yet populated" section?\n\n"Undo delete" puts it back.')) return;
+    snapshot('the "Not yet populated" section');
+    hidden.gaps = true;
+    touch();
+    renderAll();
+  });
+
+  $('#btn-restore-gaps').addEventListener('click', function () {
+    hidden.gaps = false;
+    touch();
+    renderAll();
+  });
+
+  $('#btn-undo').addEventListener('click', function () {
+    if (!undoSnapshot) return;
+    state.rows = undoSnapshot.rows;
+    hidden = undoSnapshot.hidden;
+    undoSnapshot = null;
+    reindex();
+    touch();
+    renderAll();
+  });
+
+  $('#q').addEventListener('input', function (e) {
+    state.query = e.target.value;
+    renderGantt(); renderCompleted();
+  });
+
+  $('#btn-expand').addEventListener('click', function () {
+    by('task').forEach(function (t) { state.open[t._u] = true; });
+    renderGantt(); renderCompleted();
+  });
+  $('#btn-collapse').addEventListener('click', function () {
+    state.open = {};
+    renderGantt(); renderCompleted();
+  });
+  $('#btn-print').addEventListener('click', function () { window.print(); });
+
+  $('#btn-export').addEventListener('click', function () {
+    var blob = new Blob(['\uFEFF' + toCSV(state.rows)], { type: 'text/csv;charset=utf-8;' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = LOCAL_CSV;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    state.dirty = false;
+    renderSource();
+  });
+
+  $('#btn-load').addEventListener('click', function () {
+    if (!confirmReplace()) return;
+    $('#file').click();
+  });
+  $('#file').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (f) readFile(f);
+    e.target.value = '';
+  });
+
+  // loading a CSV replaces the working set, so warn before losing unsaved edits
+  function confirmReplace() {
+    if (!state.dirty) return true;
+    return window.confirm('You have edits on this page that have not been exported. Loading a CSV replaces them.\n\nContinue?');
+  }
+
+  function readFile(f) {
+    var fr = new FileReader();
+    fr.onload = function () {
+      try { applyCSV(String(fr.result), { kind: 'url', label: 'Loaded from file — ' + f.name }); }
+      catch (err) { showNoData('Could not read ' + f.name + ': ' + err.message); }
+    };
+    fr.readAsText(f);
+  }
+
+  // last line of defence for work that has not been exported
+  window.addEventListener('beforeunload', function (e) {
+    if (!state.dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  var dz = $('#dropzone'), dragDepth = 0;
+  window.addEventListener('dragenter', function (e) { e.preventDefault(); if (++dragDepth === 1) dz.classList.add('on'); });
+  window.addEventListener('dragover', function (e) { e.preventDefault(); });
+  window.addEventListener('dragleave', function () { if (--dragDepth <= 0) { dragDepth = 0; dz.classList.remove('on'); } });
+  window.addEventListener('drop', function (e) {
+    e.preventDefault(); dragDepth = 0; dz.classList.remove('on');
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f && confirmReplace()) readFile(f);
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>
