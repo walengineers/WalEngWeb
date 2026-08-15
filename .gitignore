@@ -1,0 +1,11 @@
+# Allowlist: ignore everything at the repo root by default,
+# then re-include only the files the published site needs.
+/*
+
+!/.gitignore
+!/CNAME
+!/index.html
+
+# Client pages. Re-including the root folder is enough — /* only
+# matches root-level entries, so everything inside is then tracked.
+!/Ivel/
