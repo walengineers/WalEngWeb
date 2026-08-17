@@ -395,10 +395,18 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
 .task.open .track { background: var(--orange-tint); }
 .task:focus-visible { outline: 2px solid var(--orange); outline-offset: -2px; }
 
-.task .gname { display: flex; gap: 10px; align-items: baseline; }
-.tw { min-width: 0; }
-.tid { font-family: var(--mono); font-size: 11px; color: var(--ink-3); flex: none; width: 30px; }
-.tname { font-size: 14.5px; font-weight: 500; line-height: 1.3; }
+.task .gname { display: flex; gap: 10px; align-items: center; }
+.tw { min-width: 0; flex: 1 1 auto; }
+/* id sits on its own line above the task name so long ids cannot crowd it */
+.tid {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+.tname { display: block; font-size: 14.5px; font-weight: 500; line-height: 1.3; }
 .tmeta {
   font-family: var(--mono);
   font-size: 10px;
@@ -631,7 +639,7 @@ body.editing .addbar { display: flex; }
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  align-items: baseline;
+  align-items: center;
   background: var(--white);
   border: 1px solid var(--line);
   border-left: 4px solid var(--st-done);
@@ -642,7 +650,6 @@ body.editing .addbar { display: flex; }
 .doneitem.open { background: #F3F7F0; }
 .doneitem:focus-visible { outline: 2px solid var(--orange); outline-offset: -2px; }
 .doneitem .tick { flex: none; color: var(--st-done); font-weight: 700; }
-.doneitem .tid { width: auto; }
 .doneitem .tw { flex: 1 1 240px; }
 .doneitem .caret {
   flex: none;
@@ -655,10 +662,14 @@ body.editing .addbar { display: flex; }
 .doneitem.open .caret { transform: rotate(90deg); color: var(--st-done); }
 .doneblock .detail { border-top-color: #CFE0C6; }
 
-/* functional location tag — the schedule section the item came from */
+/* Functional location tag — the schedule section the item came from. Sits at
+   the right-hand end of the row: its width varies with the section name, so
+   in front of the task text it left every row starting at a different point. */
 .loc {
   flex: none;
   align-self: center;
+  margin-left: auto;
+  text-align: right;
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.1em;
@@ -1258,8 +1269,8 @@ body.editing .addbar { display: flex; }
         html += '<div class="grow task' + (isOpen ? ' open' : '') + '" data-uid="' + t._u +
                 '" role="button" tabindex="0" aria-expanded="' + isOpen + '">' +
                   '<div class="gname">' +
-                    '<span class="tid">' + esc(t.id) + '</span>' +
-                    '<span class="tw"><span class="tname">' + esc(t.task) + '</span>' +
+                    '<span class="tw"><span class="tid">' + esc(t.id) + '</span>' +
+                      '<span class="tname">' + esc(t.task) + '</span>' +
                       (flags.length ? '<span class="tmeta">' + flags.join(' · ') + '</span>' : '') +
                     '</span>' +
                     '<span class="caret" aria-hidden="true">&#9654;</span>' +
@@ -1302,11 +1313,11 @@ body.editing .addbar { display: flex; }
         '<div class="doneitem' + (isOpen ? ' open' : '') + '" data-uid="' + t._u +
           '" role="button" tabindex="0" aria-expanded="' + isOpen + '">' +
           '<span class="tick" aria-hidden="true">&#10003;</span>' +
-          '<span class="loc">' + esc(loc) + '</span>' +
-          '<span class="tid">' + esc(t.id) + '</span>' +
-          '<span class="tw"><span class="tname">' + esc(t.task) + '</span>' +
+          '<span class="tw"><span class="tid">' + esc(t.id) + '</span>' +
+            '<span class="tname">' + esc(t.task) + '</span>' +
             (flags.length ? '<span class="tmeta">' + flags.join(' · ') + '</span>' : '') +
           '</span>' +
+          '<span class="loc">' + esc(loc) + '</span>' +
           '<span class="caret" aria-hidden="true">&#9654;</span>' +
         '</div>' +
         detailHTML(t) +
