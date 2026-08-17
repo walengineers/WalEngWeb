@@ -55,9 +55,10 @@
     - all of it editable, including the id.
 
     Edits live for the session only. Nothing is written to the browser and
-    nothing is written back to the CSV. Press "Export CSV" and save over
-    WorkSchedule.csv to keep them. Reloading, or loading another
-    CSV, throws unsaved edits away - the page warns first.
+    nothing is written back to the CSV. Press "Export CSV" to keep them - the
+    file is stamped with the time it was taken, WorkSchedule_YYMMDDTHHMM.csv,
+    so it lands beside the others rather than over them. Reloading, or loading
+    another CSV, throws unsaved edits away - the page warns first.
 
     Any task set to status "complete" drops out of the schedule chart and is
     listed in the "Completed" section, tagged with the section it came from.
@@ -421,14 +422,31 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
 .task.open .caret { transform: rotate(90deg); color: var(--orange); }
 
 .track { position: relative; padding: 11px 0; min-height: 46px; }
-.track .bar {
+
+/* The wrapper carries where the bar sits and what status it is; .bar is only
+   the fill inside it. Splitting the two lets the status label sit outside the
+   bar, in the track beside it, on bars too short to hold their own label -
+   .bar clips its contents, the wrapper does not. */
+.track .barwrap {
   --bar: var(--st-not);
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   height: 22px;
+  container-type: inline-size;
+}
+.track .barwrap[data-status="in-progress"] { --bar: var(--st-prog); }
+.track .barwrap[data-status="complete"]    { --bar: var(--st-done); }
+.track .barwrap[data-status="blocked"]     { --bar: var(--st-block); }
+.track .barwrap[data-status="on-hold"]     { --bar: var(--st-hold); }
+
+.track .bar {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding: 0 8px;
   font-family: var(--mono);
   font-size: 10.5px;
@@ -438,11 +456,56 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
   background: var(--bar);
   text-shadow: 0 1px 1px rgba(0,0,0,0.5);
 }
-.track .bar[data-status="in-progress"] { --bar: var(--st-prog); }
-.track .bar[data-status="complete"]    { --bar: var(--st-done); }
-.track .bar[data-status="blocked"]     { --bar: var(--st-block); }
-.track .bar[data-status="on-hold"]     { --bar: var(--st-hold); }
-.track .bar.prov {
+
+/* Inside the bar: day range left, status right. The status is the label that
+   has to survive on a short bar - the day range also reads under the task name
+   and in the detail panel, where the status does not. The wrapper is a query
+   container, so the labels give way by bar width instead of being cut mid-word:
+   first the day range goes, then the status moves out of the bar to sit beside
+   it, which is the only place left to put it on a one-day bar. */
+.track .bar .bl {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.track .bar .bs {
+  flex: none;
+  margin-left: auto;      /* holds it right once .bl is gone */
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+/* Outside label. Sits off the end of the bar in the status colour, so it reads
+   against the white track and still ties back to the bar it belongs to.
+   .flip puts it on the other side for bars that finish near the last day,
+   where there is no room to the right - see barHTML(). */
+.track .bo {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 100%;
+  margin-left: 7px;
+  display: none;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bar);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.track .barwrap.flip .bo { left: auto; right: 100%; margin-left: 0; margin-right: 7px; }
+
+@container (max-width: 145px) { .track .bar .bl { display: none; } }
+@container (max-width: 88px)  {
+  .track .bar .bs { display: none; }
+  .track .bo      { display: block; }
+}
+
+.track .barwrap.prov .bar {
   background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.18) 0 6px, rgba(255,255,255,0) 6px 12px);
   border: 1px dashed rgba(255,255,255,0.7);
 }
@@ -451,10 +514,8 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
    status colour still reads across the chart, but it is pale and dashed so it
    is never mistaken for a dated bar. First background-color is the fallback
    for browsers without color-mix. */
-.track .bar.nosched {
-  left: 2px;
-  right: 3px;
-  width: auto;
+.track .barwrap.nosched { left: 2px; right: 3px; width: auto; }
+.track .barwrap.nosched .bar {
   background-color: var(--panel);
   background-color: color-mix(in srgb, var(--bar) 15%, #fff);
   border: 1px dashed var(--bar);
@@ -498,6 +559,21 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
   display: block;
   margin-bottom: 3px;
 }
+/* one-row chart at the top of a completed item's detail - see miniGantt() */
+.mg { margin-bottom: 16px; }
+.mg-cap {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: block;
+  margin-bottom: 5px;
+}
+.mg-chart { border: 1px solid var(--line); background: var(--white); }
+.mg-chart .axis .day { padding: 6px 0; font-size: 10px; }
+.mg-chart .track { padding: 7px 0; min-height: 38px; }
+
 .df .v { font-size: 14px; color: var(--ink-2); }
 .df .v.empty { color: #B5ADA5; font-style: italic; }
 .df .v code, code {
@@ -510,12 +586,14 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
 
 /* Narrow screens: drop the bar track and read as a list. The day range still
    shows in .tmeta, so no information is lost and the page never scrolls
-   sideways on a phone. */
+   sideways on a phone. Scoped to the chart - the one-row chart inside a
+   completed item's detail is a single row in a full-width panel, so it still
+   fits and stays. */
 @media (max-width: 760px) {
   .gantt-scroll { overflow-x: visible; }
   .gantt { min-width: 0; }
   .grow { grid-template-columns: 1fr; }
-  .axis .days, .grow .track { display: none; }
+  .gantt .axis .days, .gantt .grow .track { display: none; }
   .gname, .axis .gname { border-right: none; }
 }
 
@@ -523,20 +601,24 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
 
 .legend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 12px; font-size: 12.5px; color: var(--ink-2); }
 .legend .li { display: flex; align-items: center; gap: 7px; }
-.legend .sw { width: 22px; height: 11px; background: var(--st-not); flex: none; }
-.legend .sw[data-s="in-progress"] { background: var(--st-prog); }
-.legend .sw[data-s="complete"]    { background: var(--st-done); }
-.legend .sw[data-s="blocked"]     { background: var(--st-block); }
-.legend .sw[data-s="on-hold"]     { background: var(--st-hold); }
+/* Swatches are samples of the bars, so they are drawn from the same --st-*
+   colours and, for the two pattern entries, with the same hatch spacing and
+   dashed border. The pattern swatches sample the not-started grey - on the
+   chart the same pattern sits over whatever colour the task's status gives it,
+   which is what their labels say. */
+.legend .sw { --sw: var(--st-not); width: 22px; height: 14px; background: var(--sw); flex: none; }
+.legend .sw[data-s="in-progress"] { --sw: var(--st-prog); }
+.legend .sw[data-s="complete"]    { --sw: var(--st-done); }
+.legend .sw[data-s="blocked"]     { --sw: var(--st-block); }
+.legend .sw[data-s="on-hold"]     { --sw: var(--st-hold); }
 .legend .sw.prov {
-  background-color: var(--ink-3);
-  background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.4) 0 4px, rgba(255,255,255,0) 4px 8px);
-  border: 1px dashed var(--ink-3);
+  background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.18) 0 6px, rgba(255,255,255,0) 6px 12px);
+  border: 1px dashed rgba(255,255,255,0.7);
 }
 .legend .sw.nosched {
   background-color: var(--panel);
-  background-color: color-mix(in srgb, var(--ink-3) 15%, #fff);
-  border: 1px dashed var(--ink-3);
+  background-color: color-mix(in srgb, var(--sw) 15%, #fff);
+  border: 1px dashed var(--sw);
 }
 
 /* ───────────────────────── edit mode ───────────────────────── */
@@ -847,7 +929,7 @@ body.editing .addbar { display: flex; }
 
   <section id="sec-confirm">
     <h2>Requires confirmation before scheduling</h2>
-    <p class="h2note">Identified in the audit, but the site electrician boundary is not settled. Not on the schedule above.</p>
+    <p class="h2note">Add Tasks that require decisions to be made.</p>
     <div id="confirm-list"></div>
     <div class="addbar">
       <button class="btn add" type="button" data-add="confirm">Add item</button>
@@ -891,6 +973,9 @@ body.editing .addbar { display: flex; }
      ══════════════════════════════════════════════════════════════════════ */
   var CSV_URL   = '';
   var LOCAL_CSV = 'WorkSchedule.csv';
+
+  /* Exports are stamped: EXPORT_BASE_YYMMDDTHHMM.csv - see exportName(). */
+  var EXPORT_BASE = 'WorkSchedule';
 
   var COLS = ['type','id','section','section_title','task','start_day','duration_days',
               'provisional','status','crew','description','reference','prerequisites',
@@ -1002,6 +1087,12 @@ body.editing .addbar { display: flex; }
   function rawStatus(r) {
     var s = (r.status || '').toLowerCase().replace(/\s+/g, '-');
     return STATUSES.some(function (x) { return x.k === s; }) ? s : '';
+  }
+  /* Legend caption for a status key, so the bars, the detail panel and the
+     legend all name a status the same way. */
+  function statusLabel(k) {
+    var m = STATUSES.filter(function (s) { return s.k === k; })[0];
+    return m ? m.label : '';
   }
   function rawProv(r) {
     var p = (r.provisional || '').toLowerCase();
@@ -1150,7 +1241,7 @@ body.editing .addbar { display: flex; }
           ' (' + num(t.duration_days) + (num(t.duration_days) === 1 ? ' day' : ' days') + ')' +
           (/^y/i.test(t.provisional) ? ' · provisional' : '')
         : ''],
-      ['Status', (STATUSES.filter(function (s) { return s.k === statusOf(t); })[0] || {}).label],
+      ['Status', statusLabel(statusOf(t))],
       ['Notes', t.notes]
     ];
     return (t.description ? '<div class="lead">' + fmt(t.description) + '</div>' : '') +
@@ -1197,7 +1288,97 @@ body.editing .addbar { display: flex; }
   function detailHTML(t) {
     return '<div class="detail' + (state.open[t._u] ? ' open' : '') +
       '" role="region" aria-label="Detail for task ' + esc(t.id) + '">' +
+      (statusOf(t) === 'complete' ? miniGantt(t) : '') +
       (state.edit ? detailEdit(t) : detailRead(t)) + '</div>';
+  }
+
+  /* ─────────────── chart primitives ─────────────── */
+
+  /* One day scale for the whole programme, taken from every task and not just
+     the ones still open. The chart and the mini chart in a completed item's
+     detail both measure against it, so day 4 is the same place in both. */
+  function programmeMaxDay() {
+    var maxDay = 1;
+    by('task').forEach(function (t) {
+      var s = num(t.start_day), d = num(t.duration_days);
+      if (s !== null && d !== null) maxDay = Math.max(maxDay, s + d - 1);
+    });
+    return Math.max(maxDay, 5);
+  }
+
+  function dayCells(maxDay) {
+    var step = maxDay > 30 ? 5 : 1, days = '';
+    for (var d = 1; d <= maxDay; d++) {
+      days += '<div class="day">' + ((d === 1 || d % step === 0) ? d : '') + '</div>';
+    }
+    return days;
+  }
+
+  function dayGrid(maxDay) {
+    return 'background-image:repeating-linear-gradient(to right,var(--line-2) 0 1px,transparent 1px calc(100%/' +
+      maxDay + '))';
+  }
+
+  /* Room the outside label needs, as a share of the track. The narrowest track
+     the chart is ever laid out in is about 570px (.gantt min-width less the task
+     column), and the longest label runs to about 70px, so 13% is the floor. */
+  var LABEL_SHARE = 13;
+
+  /* The one place a bar is built. Colour is the status, hatching means the dates
+     are provisional, and a task with no dates gets a pale bar across the whole
+     track rather than nothing at all. The status label is written twice - once
+     inside the bar and once beside it - and CSS shows whichever the bar is wide
+     enough for. Neither is dropped, so the status always reads somewhere. */
+  function barHTML(t, maxDay) {
+    var s = num(t.start_day), dur = num(t.duration_days), st = statusOf(t);
+    var label = esc(statusLabel(st));
+
+    // the bar and its two labels, given what goes on the left inside the bar
+    var wrap = function (cls, style, leftText) {
+      return '<div class="barwrap ' + cls + '" data-status="' + st + '"' + style + '>' +
+          '<div class="bar">' +
+            '<span class="bl">' + leftText + '</span>' +
+            '<span class="bs">' + label + '</span>' +
+          '</div>' +
+          '<span class="bo">' + label + '</span>' +
+        '</div>';
+    };
+
+    if (s === null || dur === null || dur <= 0) {
+      // Not flagged provisional - there are no dates to qualify.
+      return wrap('nosched', '', 'Anytime');
+    }
+
+    var left = ((s - 1) / maxDay) * 100, width = (dur / maxDay) * 100;
+
+    // No room to the right of a bar that finishes near the last day, so its
+    // outside label goes on the left instead. A bar with room on neither side is
+    // wide enough to hold the label itself, so it never reaches the outside one.
+    var flip = (100 - (left + width) < LABEL_SHARE) && (left > LABEL_SHARE);
+
+    return wrap((/^y/i.test(t.provisional) ? 'prov' : '') + (flip ? ' flip' : ''),
+      ' style="left:' + left.toFixed(4) + '%;width:calc(' + width.toFixed(4) + '% - 3px)"',
+      'D' + s + '–D' + (s + dur - 1));
+  }
+
+  /* Completed work is lifted off the chart above, so its detail panel carries a
+     one-row chart of its own: same day scale, same axis, same bar. It lives
+     inside the detail panel, so it is only ever on screen while the item is
+     expanded. Items closed out without dates read "anytime" here, the same as
+     an undated task does on the chart. */
+  function miniGantt(t) {
+    var maxDay = programmeMaxDay();
+    var s = num(t.start_day), dur = num(t.duration_days);
+    var where = (s !== null && dur !== null && dur > 0)
+      ? 'day ' + s + ' to day ' + (s + dur - 1) + ' of ' + maxDay
+      : 'no start day set';
+    return '<div class="mg">' +
+        '<span class="mg-cap">Position in programme</span>' +
+        '<div class="mg-chart" role="img" aria-label="Worked ' + esc(where) + '">' +
+          '<div class="axis"><div class="days">' + dayCells(maxDay) + '</div></div>' +
+          '<div class="track" style="' + dayGrid(maxDay) + '">' + barHTML(t, maxDay) + '</div>' +
+        '</div>' +
+      '</div>';
   }
 
   function renderGantt() {
@@ -1211,22 +1392,11 @@ body.editing .addbar { display: flex; }
       return;
     }
 
-    var maxDay = 1;
-    openTasks().forEach(function (t) {
-      var s = num(t.start_day), d = num(t.duration_days);
-      if (s !== null && d !== null) maxDay = Math.max(maxDay, s + d - 1);
-    });
-    maxDay = Math.max(maxDay, 5);
-
-    var step = maxDay > 30 ? 5 : 1;
-    var days = '';
-    for (var d = 1; d <= maxDay; d++) {
-      days += '<div class="day">' + ((d === 1 || d % step === 0) ? d : '') + '</div>';
-    }
+    var maxDay = programmeMaxDay();
     var html = '<div class="grow axis"><div class="gname">Task</div>' +
-               '<div class="days">' + days + '</div></div>';
+               '<div class="days">' + dayCells(maxDay) + '</div></div>';
 
-    var grid = 'background-image:repeating-linear-gradient(to right,var(--line-2) 0 1px,transparent 1px calc(100%/' + maxDay + '))';
+    var grid = dayGrid(maxDay);
 
     // group by section, preserving CSV order
     var order = [], groups = {};
@@ -1246,21 +1416,11 @@ body.editing .addbar { display: flex; }
               '</div><div class="track" style="' + grid + '"></div></div>';
 
       grp.items.forEach(function (t) {
-        var s = num(t.start_day), dur = num(t.duration_days), st = statusOf(t);
+        var s = num(t.start_day), dur = num(t.duration_days);
         var isOpen = !!state.open[t._u];
         var dated = (s !== null && dur !== null && dur > 0);
         var prov = /^y/i.test(t.provisional);
-        var bar;
-        if (dated) {
-          var left = ((s - 1) / maxDay) * 100, width = (dur / maxDay) * 100;
-          bar = '<div class="bar' + (prov ? ' prov' : '') + '" data-status="' + st +
-                '" style="left:' + left.toFixed(4) + '%;width:calc(' + width.toFixed(4) + '% - 3px)">' +
-                'D' + s + '–D' + (s + dur - 1) + '</div>';
-        } else {
-          // No start day set. Still draw a bar so the status colour reads across
-          // the chart. Not flagged provisional - there are no dates to qualify.
-          bar = '<div class="bar nosched" data-status="' + st + '">Anytime</div>';
-        }
+        var bar = barHTML(t, maxDay);
 
         var flags = [dated ? 'D' + s + '–D' + (s + dur - 1) : 'anytime'];
         if (dated && prov) flags.push('provisional');
@@ -1330,8 +1490,8 @@ body.editing .addbar { display: flex; }
       return '<span class="li"><span class="sw" data-s="' + s.k + '"></span>' + s.label + '</span>';
     });
     items.push('<span class="li"><span class="sw" data-s="complete"></span>Complete — listed in the Completed section</span>');
-    items.push('<span class="li"><span class="sw prov"></span>Hatched = provisional dates</span>');
-    items.push('<span class="li"><span class="sw nosched"></span>Pale = anytime, no start day set</span>');
+    items.push('<span class="li"><span class="sw prov"></span>Hatched over the status colour = provisional dates</span>');
+    items.push('<span class="li"><span class="sw nosched"></span>Pale over the status colour = anytime, no start day set</span>');
     $('#legend').innerHTML = items.join('');
   }
 
@@ -1699,11 +1859,19 @@ body.editing .addbar { display: flex; }
   });
   $('#btn-print').addEventListener('click', function () { window.print(); });
 
+  /* WorkSchedule_260817T1432.csv - local time, 24 hour. Every export is its own
+     file, in date order in the folder, so one never quietly overwrites another. */
+  function exportName() {
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return EXPORT_BASE + '_' + String(d.getFullYear()).slice(2) + p(d.getMonth() + 1) +
+      p(d.getDate()) + 'T' + p(d.getHours()) + p(d.getMinutes()) + '.csv';
+  }
+
   $('#btn-export').addEventListener('click', function () {
     var blob = new Blob(['\uFEFF' + toCSV(state.rows)], { type: 'text/csv;charset=utf-8;' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = LOCAL_CSV;
+    a.download = exportName();
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
     state.dirty = false;
