@@ -38,7 +38,7 @@
   EDITING ON THE PAGE
   -------------------
     Press "Edit" in the toolbar. Task rows, notes and the confirmation list
-    all become editable, including task id, status, start day, duration and
+    all become editable, including task id, status, start date, duration and
     provisional.
 
     Delete buttons appear in edit mode on: each task (in its detail panel,
@@ -73,8 +73,9 @@
     section         section number, tasks only
     section_title   section heading, tasks only
     task            short task name
-    start_day       first day of work, relative (1 = first day on site)
-    duration_days   whole days
+    start_date      first day of work, DD/MM/YYYY
+    duration_days   whole calendar days, counting the start date as day one.
+                    Weekends are not skipped.
     provisional     yes = hatched bar, flagged as not yet confirmed
     status          not-started | in-progress | complete | blocked | on-hold
     crew            who is assigned
@@ -118,6 +119,16 @@
   --cond: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
   --sans: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'Space Mono', ui-monospace, Consolas, monospace;
+
+  /* task column width, shared by the chart rows and the today cursor that has
+     to clear them */
+  --namecol: 330px;
+
+  /* Today cursor and the lookbehind wash behind it. Deliberately charcoal and
+     not one of the status colours - it marks a position, not a state. */
+  --today:     #1C1C1C;
+  --today-ink: #F5F0EB;
+  --past:      rgba(28, 28, 28, 0.055);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -338,9 +349,41 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
 /* ───────────────────────── gantt ───────────────────────── */
 
 .gantt-scroll { overflow-x: auto; border: 1px solid var(--line); background: var(--white); }
-.gantt { min-width: 900px; }
+.gantt { min-width: 900px; position: relative; }
 
-.grow { display: grid; grid-template-columns: 330px 1fr; align-items: stretch; }
+.grow { display: grid; grid-template-columns: var(--namecol) 1fr; align-items: stretch; }
+
+/* Today cursor - one rule down the whole chart, over the bars, so the
+   lookbehind to its left reads apart from the work still ahead. See
+   todayOverlay(): --frac is where it sits across the track, --nc the task
+   column it has to clear. dayGrid() lays the same line into the track
+   background as well, which is all the printed sheet gets. */
+.todaynow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--nc, 0px) + (100% - var(--nc, 0px)) * var(--frac));
+  width: 2px;
+  margin-left: -1px;
+  background: var(--today);
+  pointer-events: none;
+  z-index: 4;
+}
+.gantt .todaynow { --nc: var(--namecol); }
+.todaynow .tn-cap {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--today);
+  color: var(--today-ink);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
 
 .axis { background: var(--charcoal); color: var(--paper); }
 .axis .gname {
@@ -366,6 +409,38 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
   min-width: 0;
 }
 .axis .day:first-child { border-left: none; }
+
+/* Month band above the day numbers. Each cell grows in proportion to the days
+   it covers, and the day cells all have flex-basis 0, so the two rows line up
+   exactly without either knowing the track width. */
+.axis .mons { display: flex; }
+.axis .mon {
+  flex: 1 1 0;
+  text-align: center;
+  font-family: var(--cond);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #C9C2BA;
+  padding: 6px 0 5px;
+  border-left: 1px solid #3a3a3a;
+  border-bottom: 1px solid #3a3a3a;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.axis .mon:first-child { border-left: none; }
+.axis.monrow .gname { border-bottom: 1px solid #3a3a3a; }
+
+/* Days already gone are sunk into the axis; today's is lifted out of it. A
+   month cell is only dimmed once every one of its days is behind us. */
+.axis .day.past, .axis .mon.past { background: rgba(0, 0, 0, 0.28); color: #857D75; }
+.axis .day.now {
+  background: var(--paper);
+  color: var(--charcoal);
+  font-weight: 700;
+}
 
 .gname {
   background: var(--white);
@@ -457,11 +532,11 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
   text-shadow: 0 1px 1px rgba(0,0,0,0.5);
 }
 
-/* Inside the bar: day range left, status right. The status is the label that
-   has to survive on a short bar - the day range also reads under the task name
+/* Inside the bar: date range left, status right. The status is the label that
+   has to survive on a short bar - the date range also reads under the task name
    and in the detail panel, where the status does not. The wrapper is a query
    container, so the labels give way by bar width instead of being cut mid-word:
-   first the day range goes, then the status moves out of the bar to sit beside
+   first the date range goes, then the status moves out of the bar to sit beside
    it, which is the only place left to put it on a one-day bar. */
 .track .bar .bl {
   flex: 1 1 auto;
@@ -510,7 +585,7 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
   border: 1px dashed rgba(255,255,255,0.7);
 }
 
-/* No start_day / duration_days set. The bar spans the whole track so the
+/* No start_date / duration_days set. The bar spans the whole track so the
    status colour still reads across the chart, but it is pale and dashed so it
    is never mistaken for a dated bar. First background-color is the fallback
    for browsers without color-mix. */
@@ -570,8 +645,9 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
   display: block;
   margin-bottom: 5px;
 }
-.mg-chart { border: 1px solid var(--line); background: var(--white); }
+.mg-chart { border: 1px solid var(--line); background: var(--white); position: relative; }
 .mg-chart .axis .day { padding: 6px 0; font-size: 10px; }
+.mg-chart .axis .mon { padding: 4px 0 3px; font-size: 10px; letter-spacing: 0.1em; }
 .mg-chart .track { padding: 7px 0; min-height: 38px; }
 
 .df .v { font-size: 14px; color: var(--ink-2); }
@@ -584,7 +660,7 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
   padding: 1px 4px;
 }
 
-/* Narrow screens: drop the bar track and read as a list. The day range still
+/* Narrow screens: drop the bar track and read as a list. The date range still
    shows in .tmeta, so no information is lost and the page never scrolls
    sideways on a phone. Scoped to the chart - the one-row chart inside a
    completed item's detail is a single row in a full-width panel, so it still
@@ -593,7 +669,9 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
   .gantt-scroll { overflow-x: visible; }
   .gantt { min-width: 0; }
   .grow { grid-template-columns: 1fr; }
-  .gantt .axis .days, .gantt .grow .track { display: none; }
+  .gantt .axis .days, .gantt .axis .mons, .gantt .grow .track { display: none; }
+  .gantt .axis.monrow { display: none; }
+  .gantt .todaynow { display: none; }   /* no track to point at */
   .gname, .axis .gname { border-right: none; }
 }
 
@@ -615,6 +693,8 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
   background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.18) 0 6px, rgba(255,255,255,0) 6px 12px);
   border: 1px dashed rgba(255,255,255,0.7);
 }
+.legend .sw.today { --sw: var(--today); width: 3px; }
+.legend .sw.pastwash { --sw: var(--past); box-shadow: inset 0 0 0 1px var(--line); }
 .legend .sw.nosched {
   background-color: var(--panel);
   background-color: color-mix(in srgb, var(--sw) 15%, #fff);
@@ -643,6 +723,7 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
 .f-area { display: block; resize: vertical; line-height: 1.45; }
 .f-in:focus, .f-sel:focus, .f-area:focus { outline: 2px solid var(--orange); outline-offset: -1px; }
 .f-in.num { width: 92px; font-family: var(--mono); }
+.f-in.date { width: 158px; font-family: var(--mono); }
 .f-sel {
   font-family: var(--mono);
   font-size: 12px;
@@ -882,9 +963,10 @@ body.editing .addbar { display: flex; }
 
   <section id="sec-schedule">
     <h2>Work schedule</h2>
-    <p class="h2note">Select any task to open its detail. Days are relative — Day 1 is the first day on site.
-      Tasks with no start day are marked <em>anytime</em> and still carry their status colour, shown as a pale
-      bar across the full track. Completed items are listed in the <em>Completed</em> section below.</p>
+    <p class="h2note">Select any task to open its detail. Durations run in whole calendar days from the start
+      date, weekends included. Tasks with no start date are marked <em>anytime</em> and still carry their status
+      colour, shown as a pale bar across the full track. Completed items are listed in the <em>Completed</em>
+      section below.</p>
 
     <div class="toolbar">
       <div class="grp" id="filter-status" role="group" aria-label="Filter by status"></div>
@@ -898,6 +980,7 @@ body.editing .addbar { display: flex; }
         <button class="btn ghost" id="btn-expand" type="button">Expand all</button>
         <button class="btn ghost" id="btn-collapse" type="button">Collapse all</button>
         <button class="btn ghost" id="btn-print" type="button">Print</button>
+        <button class="btn ghost" id="btn-gantt" type="button">Export Gantt</button>
         <button class="btn ghost" id="btn-export" type="button">Export CSV</button>
         <button class="btn ghost" id="btn-load" type="button">Load CSV file</button>
         <button class="btn ghost" id="btn-undo" type="button" hidden>Undo delete</button>
@@ -977,7 +1060,7 @@ body.editing .addbar { display: flex; }
   /* Exports are stamped: EXPORT_BASE_YYMMDDTHHMM.csv - see exportName(). */
   var EXPORT_BASE = 'WorkSchedule';
 
-  var COLS = ['type','id','section','section_title','task','start_day','duration_days',
+  var COLS = ['type','id','section','section_title','task','start_date','duration_days',
               'provisional','status','crew','description','reference','prerequisites',
               'isolation','permit','hold_point','notes'];
 
@@ -998,7 +1081,7 @@ body.editing .addbar { display: flex; }
 
   /* Columns that change what the schedule looks like, so the page is redrawn
      when they are committed. Everything else is just stored. */
-  var LAYOUT_COLS = { id: 1, status: 1, start_day: 1, duration_days: 1, provisional: 1,
+  var LAYOUT_COLS = { id: 1, status: 1, start_date: 1, duration_days: 1, provisional: 1,
                       section: 1, section_title: 1, task: 1, crew: 1 };
 
   var state = { rows: [], filter: 'all', query: '', open: {}, source: '', edit: false, dirty: false };
@@ -1100,6 +1183,85 @@ body.editing .addbar { display: flex; }
   }
   function num(v) { var n = parseFloat(v); return isFinite(n) ? n : null; }
 
+  /* ─────────────── dates ─────────────── */
+
+  /* The CSV holds dates as DD/MM/YYYY. Inside, every date is a Date pinned to
+     UTC midnight, so adding and subtracting days is plain arithmetic and never
+     trips over daylight saving. */
+
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var DAY_MS = 86400000;
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  /* Null on anything that is not a real date. The round-trip check rejects
+     rolled-over values such as 31/09/2026, which Date would otherwise accept
+     as 1 October. */
+  function parseDate(v) {
+    var m = /^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s*$/.exec(String(v === undefined || v === null ? '' : v));
+    if (!m) return null;
+    var d = new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));
+    if (d.getUTCFullYear() !== +m[3] || d.getUTCMonth() !== +m[2] - 1 || d.getUTCDate() !== +m[1]) return null;
+    return d;
+  }
+  function shortDate(d) { return d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()]; }
+  function longDate(d) { return shortDate(d) + ' ' + d.getUTCFullYear(); }
+  function addDays(d, n) { return new Date(d.getTime() + n * DAY_MS); }
+  function dayDiff(a, b) { return Math.round((b.getTime() - a.getTime()) / DAY_MS); }
+
+  /* <input type="date"> only ever speaks ISO, so convert on the way in and out. */
+  function toISO(v) {
+    var d = parseDate(v);
+    return d ? d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate()) : '';
+  }
+  function fromISO(v) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v === undefined || v === null ? '' : v));
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+  }
+
+  /* A task is dated only when both ends are good. duration_days counts the
+     start date as day one, so a 1-day task starts and finishes the same day. */
+  function startOf(t) { return parseDate(t.start_date); }
+  function endOf(t) {
+    var s = parseDate(t.start_date), d = num(t.duration_days);
+    return (s && d !== null && d > 0) ? addDays(s, Math.round(d) - 1) : null;
+  }
+
+  /* Today, as the calendar reads it here, pinned to UTC midnight like every
+     other date so the day arithmetic lines up. Read at draw time - a page left
+     open overnight keeps yesterday's cursor until it is redrawn. */
+  function todayDate() {
+    var n = new Date();
+    return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()));
+  }
+
+  /* Where today falls on a span: which column it is, how much of the track lies
+     behind it, and whether it is on the chart at all. A programme entirely ahead
+     of us has nothing shaded, one entirely behind us is shaded end to end, and
+     neither draws a cursor - there is no column to put it against. */
+  function todayMark(span) {
+    if (!span) return null;
+    var t = todayDate(), off = dayDiff(span.start, t), on = off >= 0 && off < span.days;
+    return {
+      date: t,
+      offset: off,
+      on: on,
+      pct: on ? (off / span.days) * 100 : null,
+      pastPct: off <= 0 ? 0 : (off >= span.days ? 100 : (off / span.days) * 100)
+    };
+  }
+
+  /* Compact, for the bar itself - the track cell is narrow. */
+  function barLabel(s, e) {
+    var a = s.getUTCDate() + '/' + (s.getUTCMonth() + 1);
+    var b = e.getUTCDate() + '/' + (e.getUTCMonth() + 1);
+    return a === b ? a : a + '–' + b;
+  }
+  /* Fuller, for the task meta line, the completed list and the detail panel. */
+  function rangeLabel(s, e) {
+    return dayDiff(s, e) === 0 ? longDate(s) : shortDate(s) + ' – ' + longDate(e);
+  }
+
   /* ─────────────── editable field builders ─────────────── */
 
   /* data-r is the row index in state.rows, data-c the column. The pair is the
@@ -1113,6 +1275,12 @@ body.editing .addbar { display: flex; }
   function inNum(r, col) {
     return '<input type="number" min="1" step="1" class="f-in num" ' + at(r, col) +
       ' value="' + esc(r[col] || '') + '" placeholder="—" />';
+  }
+  /* Edited through the browser's date picker; writeField() converts the ISO
+     value it hands back to the DD/MM/YYYY the CSV holds. */
+  function inDate(r, col) {
+    return '<input type="date" class="f-in date" ' + at(r, col) +
+      ' value="' + esc(toISO(r[col])) + '" />';
   }
   function inArea(r, col, rows) {
     return '<textarea class="f-area" rows="' + (rows || 3) + '" ' + at(r, col) + '>' +
@@ -1228,6 +1396,57 @@ body.editing .addbar { display: flex; }
     });
   }
 
+  /* ─────────────── task ordering ───────────────
+     The chart and the completed list read section by section, and inside a
+     section by task id: the prefix alphabetically, then the number appended
+     after the dot (CSTR_FDR.001, CSTR_FDR.002, CSTR_TLO_MCC01.001 ...).
+     state.rows itself keeps the order the CSV was loaded in; the sort is
+     applied on the way out, at render and at export - see exportRows(). */
+
+  /* Numbered sections first, in numeric order, then any named section
+     alphabetically, then the unsectioned rows. */
+  function sectionKey(t) {
+    var s = (t.section || '').trim();
+    var n = parseInt(s, 10);
+    if (isFinite(n)) return { rank: 0, n: n, s: '' };
+    return s ? { rank: 1, n: 0, s: s.toLowerCase() } : { rank: 2, n: 0, s: '' };
+  }
+
+  /* "CSTR_FDR.002" -> prefix CSTR_FDR, number 2. An id with no .nnn on the end
+     sorts after the numbered ones sharing its prefix; a blank id sorts last. */
+  function idKey(t) {
+    var id = (t.id || '').trim();
+    var m = /^(.*)\.(\d+)$/.exec(id);
+    if (m) return { rank: id ? 0 : 1, pre: m[1].toLowerCase(), n: +m[2] };
+    return { rank: id ? 0 : 1, pre: id.toLowerCase(), n: Infinity };
+  }
+
+  function cmpTasks(a, b) {
+    var sa = sectionKey(a), sb = sectionKey(b);
+    if (sa.rank !== sb.rank) return sa.rank - sb.rank;
+    if (sa.n !== sb.n) return sa.n - sb.n;
+    if (sa.s !== sb.s) return sa.s < sb.s ? -1 : 1;
+
+    var ia = idKey(a), ib = idKey(b);
+    if (ia.rank !== ib.rank) return ia.rank - ib.rank;
+    if (ia.pre !== ib.pre) return ia.pre < ib.pre ? -1 : 1;
+    if (ia.n === ib.n) return 0;
+    return ia.n - ib.n;
+  }
+
+  /* Sorts a copy - the caller's list, and state.rows behind it, are left alone.
+     Array.sort is stable, so rows that tie keep their CSV order. */
+  function sortTasks(list) { return list.slice().sort(cmpTasks); }
+
+  /* Row order for an export. The task rows come out in the same order the page
+     shows them - section, then id - and every other row type keeps the slot it
+     sat in, so the meta and note block stays at the top and the confirmation
+     list and the retired scope rows stay where they were. */
+  function exportRows() {
+    var sorted = sortTasks(by('task')), n = 0;
+    return state.rows.map(function (r) { return r.type === 'task' ? sorted[n++] : r; });
+  }
+
   function detailRead(t) {
     var fields = [
       ['Reference', t.reference],
@@ -1236,11 +1455,12 @@ body.editing .addbar { display: flex; }
       ['Isolation required', t.isolation],
       ['Permit required', t.permit],
       ['Hold point / sign-off', t.hold_point],
-      ['Schedule', (num(t.start_day) !== null && num(t.duration_days) !== null)
-        ? 'Day ' + num(t.start_day) + ' — Day ' + (num(t.start_day) + num(t.duration_days) - 1) +
-          ' (' + num(t.duration_days) + (num(t.duration_days) === 1 ? ' day' : ' days') + ')' +
-          (/^y/i.test(t.provisional) ? ' · provisional' : '')
-        : ''],
+      ['Schedule', (function () {
+        var s = startOf(t), e = endOf(t), d = num(t.duration_days);
+        if (!s || !e) return '';
+        return rangeLabel(s, e) + ' (' + d + (d === 1 ? ' day' : ' days') + ')' +
+          (/^y/i.test(t.provisional) ? ' · provisional' : '');
+      })()],
       ['Status', statusLabel(statusOf(t))],
       ['Notes', t.notes]
     ];
@@ -1264,7 +1484,7 @@ body.editing .addbar { display: flex; }
     };
     return '<div class="editrow">' +
         fld('Status', inSelect(t, 'status', STATUS_OPTS, rawStatus(t))) +
-        fld('Start day', inNum(t, 'start_day')) +
+        fld('Start date', inDate(t, 'start_date')) +
         fld('Duration (days)', inNum(t, 'duration_days')) +
         fld('Dates provisional', inSelect(t, 'provisional', PROV_OPTS, rawProv(t))) +
         fld('Crew', inText(t, 'crew', 'Unassigned'), true) +
@@ -1294,29 +1514,98 @@ body.editing .addbar { display: flex; }
 
   /* ─────────────── chart primitives ─────────────── */
 
-  /* One day scale for the whole programme, taken from every task and not just
-     the ones still open. The chart and the mini chart in a completed item's
-     detail both measure against it, so day 4 is the same place in both. */
-  function programmeMaxDay() {
-    var maxDay = 1;
+  /* Run-up shown before the first task starts, so the earliest bar reads as a
+     date on the axis rather than sitting hard against the left edge, and there
+     is somewhere for work that slips earlier to be drawn. */
+  var LOOKBEHIND_DAYS = 5;
+
+  /* One date scale for the whole programme, the lookbehind through to the latest
+     finish, taken from every task and not just the ones still open. The chart and
+     the mini chart in a completed item's detail both measure against it, so 8 Sep
+     is the same place in both. Null when nothing carries a date - there is no
+     anchor to hang an axis off, so the charts draw without one and every bar
+     falls back to "anytime". */
+  function programmeSpan() {
+    var min = null, max = null;
     by('task').forEach(function (t) {
-      var s = num(t.start_day), d = num(t.duration_days);
-      if (s !== null && d !== null) maxDay = Math.max(maxDay, s + d - 1);
+      var s = startOf(t), e = endOf(t);
+      if (!s || !e) return;
+      if (!min || s < min) min = s;
+      if (!max || e > max) max = e;
     });
-    return Math.max(maxDay, 5);
+    if (!min) return null;
+    min = addDays(min, -LOOKBEHIND_DAYS);
+    var n = dayDiff(min, max) + 1;
+    if (n < 5) { max = addDays(min, 4); n = 5; }   // a lone short task should not fill the track
+    return { start: min, end: max, days: n };
   }
 
-  function dayCells(maxDay) {
-    var step = maxDay > 30 ? 5 : 1, days = '';
-    for (var d = 1; d <= maxDay; d++) {
-      days += '<div class="day">' + ((d === 1 || d % step === 0) ? d : '') + '</div>';
+  function dayCells(span) {
+    if (!span) return '';
+    var step = span.days > 30 ? 5 : 1, mark = todayMark(span), days = '';
+    for (var i = 0; i < span.days; i++) {
+      var cls = 'day' + (mark && i < mark.offset ? ' past' : '') +
+                        (mark && i === mark.offset ? ' now' : '');
+      days += '<div class="' + cls + '">' +
+              ((i % step === 0 || (mark && i === mark.offset)) ? addDays(span.start, i).getUTCDate() : '') +
+              '</div>';
     }
     return days;
   }
 
-  function dayGrid(maxDay) {
-    return 'background-image:repeating-linear-gradient(to right,var(--line-2) 0 1px,transparent 1px calc(100%/' +
-      maxDay + '))';
+  /* The band that names the months the day numbers belong to. One cell per run
+     of days in the same month, grown in proportion, so it lines up with the day
+     cells beneath it. */
+  function monthCells(span) {
+    if (!span) return '';
+    var runs = [], run = null, mark = todayMark(span);
+    for (var i = 0; i < span.days; i++) {
+      var d = addDays(span.start, i), key = d.getUTCFullYear() + '-' + d.getUTCMonth();
+      if (!run || run.key !== key) {
+        run = { key: key, at: i, n: 0, label: MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear() };
+        runs.push(run);
+      }
+      run.n++;
+    }
+    return runs.map(function (m) {
+      // dimmed only once the whole month is behind us, not part way through it
+      var past = mark && (m.at + m.n) <= mark.offset;
+      return '<div class="mon' + (past ? ' past' : '') + '" style="flex:' + m.n + ' 1 0">' +
+        esc(m.label) + '</div>';
+    }).join('');
+  }
+
+  /* Track background, topmost layer first: the today line, the wash over the
+     days already gone, then the day ruling. These sit behind the bars - the
+     cursor drawn over the top comes from todayOverlay(), which the printed
+     sheet has no way to carry. */
+  function dayGrid(span) {
+    if (!span) return '';
+    var layers = [], mark = todayMark(span);
+    if (mark && mark.on) {
+      var p = mark.pct.toFixed(4) + '%';
+      layers.push('linear-gradient(to right,transparent 0 calc(' + p + ' - 1px),' +
+                  'var(--today) calc(' + p + ' - 1px) calc(' + p + ' + 1px),' +
+                  'transparent calc(' + p + ' + 1px))');
+    }
+    if (mark && mark.pastPct > 0) {
+      var q = mark.pastPct.toFixed(4) + '%';
+      layers.push('linear-gradient(to right,var(--past) 0 ' + q + ',transparent ' + q + ')');
+    }
+    layers.push('repeating-linear-gradient(to right,var(--line-2) 0 1px,transparent 1px calc(100%/' +
+      span.days + '))');
+    return 'background-image:' + layers.join(',');
+  }
+
+  /* The today cursor itself, laid over the bars. Nothing when today is off the
+     chart - a programme wholly ahead or wholly behind has no column to mark, and
+     the wash from dayGrid() already says which of the two it is. */
+  function todayOverlay(span) {
+    var mark = todayMark(span);
+    if (!mark || !mark.on) return '';
+    return '<div class="todaynow" style="--frac:' + (mark.pct / 100).toFixed(6) + '" aria-hidden="true">' +
+        '<span class="tn-cap">Today &middot; ' + esc(shortDate(mark.date)) + '</span>' +
+      '</div>';
   }
 
   /* Room the outside label needs, as a share of the track. The narrowest track
@@ -1329,8 +1618,8 @@ body.editing .addbar { display: flex; }
      track rather than nothing at all. The status label is written twice - once
      inside the bar and once beside it - and CSS shows whichever the bar is wide
      enough for. Neither is dropped, so the status always reads somewhere. */
-  function barHTML(t, maxDay) {
-    var s = num(t.start_day), dur = num(t.duration_days), st = statusOf(t);
+  function barHTML(t, span) {
+    var s = startOf(t), e = endOf(t), st = statusOf(t);
     var label = esc(statusLabel(st));
 
     // the bar and its two labels, given what goes on the left inside the bar
@@ -1344,12 +1633,13 @@ body.editing .addbar { display: flex; }
         '</div>';
     };
 
-    if (s === null || dur === null || dur <= 0) {
+    if (!span || !s || !e) {
       // Not flagged provisional - there are no dates to qualify.
       return wrap('nosched', '', 'Anytime');
     }
 
-    var left = ((s - 1) / maxDay) * 100, width = (dur / maxDay) * 100;
+    var left = (dayDiff(span.start, s) / span.days) * 100,
+        width = ((dayDiff(s, e) + 1) / span.days) * 100;
 
     // No room to the right of a bar that finishes near the last day, so its
     // outside label goes on the left instead. A bar with room on neither side is
@@ -1358,7 +1648,7 @@ body.editing .addbar { display: flex; }
 
     return wrap((/^y/i.test(t.provisional) ? 'prov' : '') + (flip ? ' flip' : ''),
       ' style="left:' + left.toFixed(4) + '%;width:calc(' + width.toFixed(4) + '% - 3px)"',
-      'D' + s + '–D' + (s + dur - 1));
+      barLabel(s, e));
   }
 
   /* Completed work is lifted off the chart above, so its detail panel carries a
@@ -1367,16 +1657,18 @@ body.editing .addbar { display: flex; }
      expanded. Items closed out without dates read "anytime" here, the same as
      an undated task does on the chart. */
   function miniGantt(t) {
-    var maxDay = programmeMaxDay();
-    var s = num(t.start_day), dur = num(t.duration_days);
-    var where = (s !== null && dur !== null && dur > 0)
-      ? 'day ' + s + ' to day ' + (s + dur - 1) + ' of ' + maxDay
-      : 'no start day set';
+    var span = programmeSpan();
+    var s = startOf(t), e = endOf(t);
+    var where = (s && e)
+      ? rangeLabel(s, e) + (span ? ' of ' + rangeLabel(span.start, span.end) : '')
+      : 'no start date set';
     return '<div class="mg">' +
         '<span class="mg-cap">Position in programme</span>' +
         '<div class="mg-chart" role="img" aria-label="Worked ' + esc(where) + '">' +
-          '<div class="axis"><div class="days">' + dayCells(maxDay) + '</div></div>' +
-          '<div class="track" style="' + dayGrid(maxDay) + '">' + barHTML(t, maxDay) + '</div>' +
+          '<div class="axis"><div class="mons">' + monthCells(span) + '</div>' +
+            '<div class="days">' + dayCells(span) + '</div></div>' +
+          '<div class="track" style="' + dayGrid(span) + '">' + barHTML(t, span) + '</div>' +
+          todayOverlay(span) +
         '</div>' +
       '</div>';
   }
@@ -1392,15 +1684,17 @@ body.editing .addbar { display: flex; }
       return;
     }
 
-    var maxDay = programmeMaxDay();
-    var html = '<div class="grow axis"><div class="gname">Task</div>' +
-               '<div class="days">' + dayCells(maxDay) + '</div></div>';
+    var span = programmeSpan();
+    var html = (span ? '<div class="grow axis monrow"><div class="gname"></div>' +
+                       '<div class="mons">' + monthCells(span) + '</div></div>' : '') +
+               '<div class="grow axis"><div class="gname">Task</div>' +
+               '<div class="days">' + dayCells(span) + '</div></div>';
 
-    var grid = dayGrid(maxDay);
+    var grid = dayGrid(span);
 
-    // group by section, preserving CSV order
+    // section by section, and inside a section by task id - see cmpTasks()
     var order = [], groups = {};
-    tasks.forEach(function (t) {
+    sortTasks(tasks).forEach(function (t) {
       var key = t.section || '—';
       if (!groups[key]) { groups[key] = { title: t.section_title, items: [] }; order.push(key); }
       groups[key].items.push(t);
@@ -1416,13 +1710,13 @@ body.editing .addbar { display: flex; }
               '</div><div class="track" style="' + grid + '"></div></div>';
 
       grp.items.forEach(function (t) {
-        var s = num(t.start_day), dur = num(t.duration_days);
+        var s = startOf(t), e = endOf(t);
         var isOpen = !!state.open[t._u];
-        var dated = (s !== null && dur !== null && dur > 0);
+        var dated = !!(span && s && e);
         var prov = /^y/i.test(t.provisional);
-        var bar = barHTML(t, maxDay);
+        var bar = barHTML(t, span);
 
-        var flags = [dated ? 'D' + s + '–D' + (s + dur - 1) : 'anytime'];
+        var flags = [dated ? rangeLabel(s, e) : 'anytime'];
         if (dated && prov) flags.push('provisional');
         if (t.crew) flags.push(esc(t.crew));
 
@@ -1441,7 +1735,8 @@ body.editing .addbar { display: flex; }
       });
     });
 
-    g.innerHTML = html;
+    // last, so the cursor rules down over every row it crosses
+    g.innerHTML = html + todayOverlay(span);
   }
 
   /* Completed work is lifted out of the schedule above and listed here, each
@@ -1461,12 +1756,12 @@ body.editing .addbar { display: flex; }
       return;
     }
 
-    $('#done-list').innerHTML = rows.map(function (t) {
+    $('#done-list').innerHTML = sortTasks(rows).map(function (t) {
       var isOpen = !!state.open[t._u];
       var loc = [t.section, t.section_title].filter(Boolean).join(' · ') || 'Unsectioned';
-      var s = num(t.start_day), dur = num(t.duration_days);
+      var s = startOf(t), e = endOf(t);
       var flags = [];
-      if (s !== null && dur !== null && dur > 0) flags.push('D' + s + '–D' + (s + dur - 1));
+      if (s && e) flags.push(rangeLabel(s, e));
       if (t.crew) flags.push(esc(t.crew));
 
       return '<div class="doneblock">' +
@@ -1491,7 +1786,9 @@ body.editing .addbar { display: flex; }
     });
     items.push('<span class="li"><span class="sw" data-s="complete"></span>Complete — listed in the Completed section</span>');
     items.push('<span class="li"><span class="sw prov"></span>Hatched over the status colour = provisional dates</span>');
-    items.push('<span class="li"><span class="sw nosched"></span>Pale over the status colour = anytime, no start day set</span>');
+    items.push('<span class="li"><span class="sw nosched"></span>Pale over the status colour = anytime, no start date set</span>');
+    items.push('<span class="li"><span class="sw today"></span>Today</span>');
+    items.push('<span class="li"><span class="sw pastwash"></span>Shaded = already gone by</span>');
     $('#legend').innerHTML = items.join('');
   }
 
@@ -1768,7 +2065,8 @@ body.editing .addbar { display: flex; }
   function writeField(el) {
     var r = state.rows[+el.dataset.r];
     if (!r) return null;
-    r[el.dataset.c] = el.value;
+    // the date picker hands back ISO; the CSV holds DD/MM/YYYY
+    r[el.dataset.c] = el.type === 'date' ? fromISO(el.value) : el.value;
     return r;
   }
 
@@ -1859,6 +2157,249 @@ body.editing .addbar { display: flex; }
   });
   $('#btn-print').addEventListener('click', function () { window.print(); });
 
+  /* ─────────────── gantt export ───────────────
+
+     A print-ready copy of the chart in a window of its own. Every open task
+     goes in - the status chips and the search box are ignored, so what comes
+     out is the whole programme rather than whatever the page happens to be
+     filtered down to at the time. Completed work stays off it, the same way it
+     is lifted off the chart on the page.
+
+     The task column is cut back to the three things that identify a row on a
+     printed sheet: title, task id, crew. Everything else is in the detail
+     panels on the page and in the CSV.
+
+     The date scale and the bars come out of programmeSpan() and barHTML(),
+     the same two the page draws with, so the sheet and the screen can never
+     disagree about where a bar sits. The axis is a real <thead>, so it repeats
+     at the top of every printed page. */
+
+  /* Stylesheet for the sheet. The export window shares nothing with this page
+     but the web fonts, so this is a self-contained cut-down of the chart styles
+     above: same palette, same bar rules, sized down for paper. */
+  var GANTT_CSS = [
+    ':root{--orange:#D4570A;--orange-mid:#C04A08;--charcoal:#1C1C1C;--paper:#F5F0EB;',
+      '--white:#FFFFFF;--panel:#F8F5F2;--ink:#1C1C1C;--ink-2:#55504B;--ink-3:#8A837C;',
+      '--line:#D8D3CE;--line-2:#E9E4DF;',
+      '--st-not:#8A837C;--st-prog:#D4570A;--st-done:#4F7A3F;--st-block:#B03028;--st-hold:#A87512;',
+      '--today:#1C1C1C;--past:rgba(28,28,28,.055);',
+      "--cond:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;",
+      "--sans:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;",
+      "--mono:'Space Mono',ui-monospace,Consolas,monospace}",
+    '*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}',
+
+    /* landscape - the day axis needs the width far more than the task column
+       needs the depth. Colour has to be forced on or the bars print grey. */
+    '@page{size:A4 landscape;margin:10mm}',
+    'body{background:var(--white);color:var(--ink);font-family:var(--sans);font-size:12px;',
+      'line-height:1.4;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+    '.sheet{max-width:1400px;margin:0 auto;padding:20px}',
+    '@media print{.sheet{max-width:none;padding:0}}',
+
+    /* header */
+    '.hd{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;',
+      'border-bottom:2px solid var(--charcoal);padding-bottom:9px;margin-bottom:12px}',
+    '.hd h1{font-family:var(--cond);font-weight:700;font-size:23px;line-height:1.05;',
+      'text-transform:uppercase;letter-spacing:.04em}',
+    '.hd .sub{color:var(--ink-2);font-size:11.5px;margin-top:2px}',
+    '.hd .meta{font-family:var(--mono);font-size:9px;color:var(--ink-3);text-align:right;',
+      'letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}',
+
+    /* chart - two columns, the axis in a thead so it repeats page to page */
+    'table.g{width:100%;border-collapse:collapse;table-layout:fixed}',
+    'col.cn{width:27%}',
+    'thead th{background:var(--charcoal);color:var(--paper);text-align:left;font-weight:400}',
+    'thead th.ncell{font-family:var(--mono);font-size:9px;letter-spacing:.12em;',
+      'text-transform:uppercase;padding:0 10px;border-right:1px solid #3a3a3a}',
+    'thead th.tcell{padding:0}',
+    '.days{display:flex}',
+    '.day{flex:1 1 0;min-width:0;text-align:center;font-family:var(--mono);font-size:9px;',
+      'padding:6px 0;border-left:1px solid #3a3a3a}',
+    '.day:first-child{border-left:none}',
+    /* month band above the day numbers - see monthCells() */
+    '.mons{display:flex}',
+    '.mon{flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap;text-align:center;',
+      'font-family:var(--cond);font-weight:600;font-size:9px;letter-spacing:.12em;',
+      'text-transform:uppercase;color:#C9C2BA;padding:4px 0 3px;',
+      'border-left:1px solid #3a3a3a;border-bottom:1px solid #3a3a3a}',
+    '.mon:first-child{border-left:none}',
+    /* days already gone, and today - the cursor itself rules through the track
+       backgrounds, see dayGrid() */
+    '.day.past,.mon.past{background:rgba(0,0,0,.28);color:#857D75}',
+    '.day.now{background:var(--paper);color:var(--charcoal);font-weight:700}',
+    'tr{break-inside:avoid;page-break-inside:avoid}',
+    'tbody tr{height:38px}',
+    'tbody td{border-top:1px solid var(--line-2);vertical-align:middle}',
+    'td.ncell{padding:5px 10px;border-right:1px solid var(--line)}',
+    /* the track fills its cell rather than carrying a height of its own, so a
+       title that wraps to two lines takes the day grid down with it instead of
+       leaving a gap in the ruling */
+    'td.tcell{padding:0;position:relative}',
+    'tr.sechead{height:26px}',
+    'tr.sechead td{background:var(--panel);border-top:1px solid var(--line)}',
+    'tr.sechead td.ncell{font-family:var(--cond);font-weight:700;font-size:12.5px;',
+      'text-transform:uppercase;letter-spacing:.06em;color:var(--orange-mid)}',
+    'tr.sechead .num{color:var(--ink-3);margin-right:7px}',
+    '.tname{font-size:12px;font-weight:500;line-height:1.25}',
+    '.tmeta{display:flex;gap:12px;flex-wrap:wrap;font-family:var(--mono);font-size:8.5px;',
+      'color:var(--ink-3);letter-spacing:.04em;margin-top:2px}',
+    '.tmeta .tid{color:var(--ink-2)}',
+    '.track{position:absolute;inset:0}',
+
+    /* bars - barHTML() writes the markup, so these are the page rules scaled down */
+    '.barwrap{--bar:var(--st-not);position:absolute;top:50%;transform:translateY(-50%);',
+      'height:18px;container-type:inline-size}',
+    '.barwrap[data-status="in-progress"]{--bar:var(--st-prog)}',
+    '.barwrap[data-status="complete"]{--bar:var(--st-done)}',
+    '.barwrap[data-status="blocked"]{--bar:var(--st-block)}',
+    '.barwrap[data-status="on-hold"]{--bar:var(--st-hold)}',
+    '.bar{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;',
+      'gap:8px;padding:0 6px;font-family:var(--mono);font-size:9px;color:#fff;white-space:nowrap;',
+      'overflow:hidden;background:var(--bar)}',
+    '.bar .bl{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}',
+    '.bar .bs{flex:none;margin-left:auto;font-size:8px;letter-spacing:.08em;',
+      'text-transform:uppercase;opacity:.92}',
+    '.bo{position:absolute;top:50%;transform:translateY(-50%);left:100%;margin-left:6px;display:none;',
+      'font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;',
+      'color:var(--bar);white-space:nowrap}',
+    '.barwrap.flip .bo{left:auto;right:100%;margin-left:0;margin-right:6px}',
+    '@container (max-width:130px){.bar .bl{display:none}}',
+    '@container (max-width:78px){.bar .bs{display:none}.bo{display:block}}',
+    '.barwrap.prov .bar{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.2) 0 5px,',
+      'rgba(255,255,255,0) 5px 10px);border:1px dashed rgba(255,255,255,.75)}',
+    '.barwrap.nosched{left:2px;right:3px;width:auto}',
+    '.barwrap.nosched .bar{background-color:var(--panel);',
+      'background-color:color-mix(in srgb,var(--bar) 15%,#fff);border:1px dashed var(--bar);',
+      'color:var(--bar);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase}',
+
+    /* legend */
+    '.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;font-size:11px;',
+      'color:var(--ink-2);break-inside:avoid;page-break-inside:avoid}',
+    '.legend .li{display:flex;align-items:center;gap:7px}',
+    '.legend .sw{--sw:var(--st-not);width:20px;height:12px;background:var(--sw);flex:none}',
+    '.legend .sw[data-s="in-progress"]{--sw:var(--st-prog)}',
+    '.legend .sw[data-s="blocked"]{--sw:var(--st-block)}',
+    '.legend .sw[data-s="on-hold"]{--sw:var(--st-hold)}',
+    '.legend .sw.today{--sw:var(--today);width:3px}',
+    '.legend .sw.pastwash{--sw:var(--past);box-shadow:inset 0 0 0 1px var(--line)}',
+    '.legend .sw.prov{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.18) 0 6px,',
+      'rgba(255,255,255,0) 6px 12px);border:1px dashed rgba(255,255,255,.7)}',
+    '.legend .sw.nosched{background-color:var(--panel);',
+      'background-color:color-mix(in srgb,var(--sw) 15%,#fff);border:1px dashed var(--sw)}'
+  ].join('');
+
+  /* Runs inside the export window. Waits for the web fonts before it prints -
+     the chart is laid out in them and the dialog would otherwise open over a
+     half-drawn sheet - with a timeout in case they never arrive, which is what
+     happens with no network. The guard stops the two racing into two dialogs. */
+  var GANTT_PRINT_KICK =
+    'window.addEventListener("load",function(){' +
+      'var done=false,go=function(){if(done)return;done=true;' +
+        'try{window.focus();window.print();}catch(e){}};' +
+      'if(document.fonts&&document.fonts.ready){document.fonts.ready.then(go);}' +
+      'setTimeout(go,2500);});';
+
+  /* "04 Sep 2026 18:30" - local time, 24 hour. The CSV export stamps its
+     filename instead, see exportName(). */
+  function stampText() {
+    var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return p(d.getDate()) + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear() + ' ' +
+      p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function ganttDoc() {
+    var tasks = sortTasks(openTasks());
+    var span = programmeSpan();
+    var grid = dayGrid(span);
+
+    // section by section, and inside a section by task id - see cmpTasks()
+    var order = [], groups = {};
+    tasks.forEach(function (t) {
+      var key = t.section || '—';
+      if (!groups[key]) { groups[key] = { title: t.section_title, items: [] }; order.push(key); }
+      groups[key].items.push(t);
+    });
+
+    var body = '';
+    order.forEach(function (key) {
+      var grp = groups[key];
+      body += '<tr class="sechead"><td class="ncell">' +
+                (key === '—' ? '' : '<span class="num">' + esc(key) + '</span>') +
+                esc(grp.title || (key === '—' ? 'Unsectioned' : '')) +
+              '</td><td class="tcell"><div class="track" style="' + grid + '"></div></td></tr>';
+
+      grp.items.forEach(function (t) {
+        // title, id, crew - an unset id or crew reads as a dash rather than a gap
+        body += '<tr class="task"><td class="ncell">' +
+                  '<div class="tname">' + esc(t.task) + '</div>' +
+                  '<div class="tmeta">' +
+                    '<span class="tid">' + esc(t.id || '—') + '</span>' +
+                    '<span class="tcrew">Crew ' + esc(t.crew || '—') + '</span>' +
+                  '</div>' +
+                '</td>' +
+                '<td class="tcell"><div class="track" style="' + grid + '">' +
+                  barHTML(t, span) + '</div></td></tr>';
+      });
+    });
+
+    // complete is left out - completed work is not on this sheet
+    var legend = STATUSES.filter(function (s) { return s.k !== 'complete'; }).map(function (s) {
+      return '<span class="li"><span class="sw" data-s="' + s.k + '"></span>' + esc(s.label) + '</span>';
+    });
+    legend.push('<span class="li"><span class="sw prov"></span>Hatched — provisional dates</span>');
+    legend.push('<span class="li"><span class="sw nosched"></span>Pale — anytime, no start date set</span>');
+    legend.push('<span class="li"><span class="sw today"></span>Today</span>');
+    legend.push('<span class="li"><span class="sw pastwash"></span>Shaded — already gone by</span>');
+
+    var strip = [['Client', meta('client')], ['Doc ref', meta('doc_ref')],
+                 ['Revision', meta('revision')], ['Printed', stampText()]]
+      .filter(function (f) { return f[1]; })
+      .map(function (f) { return '<div>' + esc(f[0]) + ' &middot; ' + esc(f[1]) + '</div>'; }).join('');
+
+    var title = meta('doc_title') || 'Work schedule';
+    var sub = meta('doc_subtitle');
+
+    return '<!DOCTYPE html><html lang="en-AU"><head><meta charset="UTF-8" />' +
+      '<title>' + esc(title) + ' — Gantt</title>' +
+      '<link rel="preconnect" href="https://fonts.googleapis.com" />' +
+      '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />' +
+      '<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700' +
+        '&amp;family=Barlow:wght@300;400;500;600&amp;family=Space+Mono:wght@400;700&amp;display=swap"' +
+        ' rel="stylesheet" />' +
+      '<style>' + GANTT_CSS + '</style></head><body><div class="sheet">' +
+        '<div class="hd"><div><h1>' + esc(title) + '</h1>' +
+          (sub ? '<div class="sub">' + esc(sub) + '</div>' : '') +
+          '<div class="sub">' + tasks.length + (tasks.length === 1 ? ' open task' : ' open tasks') +
+            (span ? ' &middot; ' + esc(rangeLabel(span.start, span.end)) : '') +
+            ' &middot; completed work not shown</div>' +
+        '</div><div class="meta">' + strip + '</div></div>' +
+        '<table class="g"><colgroup><col class="cn" /><col /></colgroup>' +
+          '<thead><tr><th class="ncell">Task</th>' +
+            '<th class="tcell"><div class="mons">' + monthCells(span) + '</div>' +
+              '<div class="days">' + dayCells(span) + '</div></th></tr></thead>' +
+          '<tbody>' + body + '</tbody></table>' +
+        '<div class="legend">' + legend.join('') + '</div>' +
+      '</div><scr' + 'ipt>' + GANTT_PRINT_KICK + '</scr' + 'ipt></body></html>';
+  }
+
+  $('#btn-gantt').addEventListener('click', function () {
+    if (!openTasks().length) {
+      window.alert(state.rows.length
+        ? 'There are no open tasks to export. Completed work is listed in the Completed section and is left off the chart.'
+        : 'No schedule loaded. Press "Load CSV file" first.');
+      return;
+    }
+    var w = window.open('', '_blank');
+    if (!w) {
+      window.alert('The browser blocked the export window. Allow pop-ups for this page, then press Export Gantt again.');
+      return;
+    }
+    w.document.open();
+    w.document.write(ganttDoc());
+    w.document.close();
+  });
+
   /* WorkSchedule_260817T1432.csv - local time, 24 hour. Every export is its own
      file, in date order in the folder, so one never quietly overwrites another. */
   function exportName() {
@@ -1868,7 +2409,7 @@ body.editing .addbar { display: flex; }
   }
 
   $('#btn-export').addEventListener('click', function () {
-    var blob = new Blob(['\uFEFF' + toCSV(state.rows)], { type: 'text/csv;charset=utf-8;' });
+    var blob = new Blob(['\uFEFF' + toCSV(exportRows())], { type: 'text/csv;charset=utf-8;' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = exportName();
