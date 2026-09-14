@@ -35,6 +35,19 @@
     3. Paste the published URL into CSV_URL below.
     Note: a published sheet is readable by anyone with the link.
 
+  WHEN A TASK STARTS
+  ------------------
+    A task is nominated to start one of two ways: on a start date of its own,
+    or off the back of another task named in "prerequisites". Given a
+    prerequisite and no start date, work begins the day after the prerequisite
+    finishes, and a chain resolves right through - B off A, C off B.
+
+    Set both and the start date wins. It is the date someone has committed to,
+    and quietly pushing the bar out to suit the prerequisite would hide the
+    decision. Where that date lands on or before the prerequisite's finish the
+    bar is drawn charcoal with an orange edge and reads CLASH, so the overlap
+    is on the chart rather than buried in the detail panel.
+
   EDITING ON THE PAGE
   -------------------
     Press "Edit" in the toolbar. Task rows, notes and the confirmation list
@@ -81,7 +94,11 @@
     crew            who is assigned
     description     detail text (also the value column for meta rows)
     reference       source reference
-    prerequisites   what must be done first
+    prerequisites   the id of the task that must finish first. Picked from a
+                    list of open tasks in edit mode. A task with no start date
+                    of its own starts the day after its prerequisite finishes.
+                    Anything here that names no task is left as free text - it
+                    neither schedules nor flags.
     isolation       isolation required
     permit          permit required
     hold_point      sign-off / hold point
@@ -493,6 +510,11 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
   gap: 8px;
   flex-wrap: wrap;
 }
+/* One flag per element, so a flagged one can be coloured on its own. The dot
+   between them is drawn rather than written, so nothing has to be joined. */
+.tmeta .fl { white-space: nowrap; }
+.tmeta .fl + .fl::before { content: '·'; margin-right: 8px; opacity: 0.55; }
+.tmeta .fl.warn { color: var(--orange-mid); font-weight: 700; }
 .caret { flex: none; color: var(--ink-3); font-size: 10px; margin-left: auto; padding-left: 8px; transition: transform 0.14s ease; }
 .task.open .caret { transform: rotate(90deg); color: var(--orange); }
 
@@ -601,6 +623,16 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
   text-transform: uppercase;
 }
 
+/* Prerequisite clash - the start date has been honoured over the prerequisite,
+   so the bar sits where the work is actually planned and the charcoal fill with
+   an orange edge says the overlap is known about but unresolved. Charcoal is
+   not a status colour, so a flagged bar can never be read as "blocked". Last of
+   the bar rules, so it takes the edge off .prov and .nosched on a bar that is
+   both. */
+.track .barwrap.clash { --bar: var(--charcoal); }
+.track .barwrap.clash .bar { border: 1px dashed var(--orange); }
+.track .barwrap.clash .bo { color: var(--orange-mid); font-weight: 700; }
+
 /* ───────────────────────── detail panel ───────────────────────── */
 
 .detail {
@@ -634,6 +666,31 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
   display: block;
   margin-bottom: 3px;
 }
+/* Said in full at the top of the panel, in both read and edit mode, because the
+   flag on the bar itself only has room for the one word. */
+.detail .warnbox {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--charcoal);
+  padding: 11px 15px;
+  margin-bottom: 16px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.detail .warnbox .wk {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--orange-mid);
+}
+
 /* one-row chart at the top of a completed item's detail - see miniGantt() */
 .mg { margin-bottom: 16px; }
 .mg-cap {
@@ -700,6 +757,7 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
   background-color: color-mix(in srgb, var(--sw) 15%, #fff);
   border: 1px dashed var(--sw);
 }
+.legend .sw.clash { --sw: var(--charcoal); border: 1px dashed var(--orange); }
 
 /* ───────────────────────── edit mode ───────────────────────── */
 
@@ -734,6 +792,15 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
 .f-sel[data-st="complete"]    { color: var(--st-done); }
 .f-sel[data-st="blocked"]     { color: var(--st-block); }
 .f-sel[data-st="on-hold"]     { color: var(--st-hold); }
+
+/* The prerequisite picker lists task names, not codes, so it reads as prose
+   rather than as the upper-case mono the status and provisional selects use. */
+.f-sel.prereq {
+  font-family: var(--sans);
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
 
 .flbl {
   font-family: var(--mono);
@@ -778,6 +845,17 @@ body.editing .addbar { display: flex; }
 .editrow .fld { flex: 0 0 auto; }
 .editrow .fld.grow1 { flex: 1 1 180px; min-width: 150px; }
 .editrow .f-sel { width: auto; min-width: 150px; }
+.editrow .fld.grow1 .f-sel { width: 100%; }
+
+/* the rule the two start fields answer to, said once, under both of them */
+.editrow .edhint {
+  flex: 1 1 100%;
+  font-size: 11.5px;
+  font-style: italic;
+  line-height: 1.45;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
 
 .dgrid .df.wide { grid-column: 1 / -1; }
 .df .ro { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); }
@@ -1082,7 +1160,7 @@ body.editing .addbar { display: flex; }
   /* Columns that change what the schedule looks like, so the page is redrawn
      when they are committed. Everything else is just stored. */
   var LAYOUT_COLS = { id: 1, status: 1, start_date: 1, duration_days: 1, provisional: 1,
-                      section: 1, section_title: 1, task: 1, crew: 1 };
+                      section: 1, section_title: 1, task: 1, crew: 1, prerequisites: 1 };
 
   var state = { rows: [], filter: 'all', query: '', open: {}, source: '', edit: false, dirty: false };
 
@@ -1219,12 +1297,100 @@ body.editing .addbar { display: flex; }
     return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
   }
 
-  /* A task is dated only when both ends are good. duration_days counts the
-     start date as day one, so a 1-day task starts and finishes the same day. */
-  function startOf(t) { return parseDate(t.start_date); }
-  function endOf(t) {
-    var s = parseDate(t.start_date), d = num(t.duration_days);
-    return (s && d !== null && d > 0) ? addDays(s, Math.round(d) - 1) : null;
+  /* ─────────────── when a task starts ───────────────
+
+     A task is nominated to start one of two ways: on a start date of its own,
+     or off the back of another task named in prerequisites. Given a
+     prerequisite and no start date, work begins the day after the prerequisite
+     finishes, and a chain resolves right through - B off A, C off B.
+
+     Where a task carries both, the start date wins. It is the date someone has
+     committed to, and quietly pushing the bar out to suit the prerequisite
+     would hide the decision. If that date lands on or before the prerequisite's
+     finish, the bar is flagged instead, so the overlap is on the chart rather
+     than buried in the detail panel. Handover is the day after, so a start on
+     the finish day is already an overlap.
+
+     Anything in prerequisites that names no task is left alone as free text. It
+     neither schedules nor flags, so notes already sitting in that column read
+     as they always did.
+
+     duration_days counts the start date as day one, so a 1-day task starts and
+     finishes the same day. */
+
+  var ISSUE = {
+    clash: 'Clash',
+    loop:  'Loop'
+  };
+
+  var NO_SCHED = { start: null, end: null, from: '', issue: '', prereq: null, prereqEnd: null };
+
+  /* Worked out for every task at once and held until the next edit - see
+     touch(). Keyed on _u, so it survives a row being renamed or re-indexed. */
+  var schedCache = null;
+  function invalidateSchedule() { schedCache = null; }
+
+  function idKeyOf(v) { return String(v === undefined || v === null ? '' : v).trim().toLowerCase(); }
+
+  function buildSchedule() {
+    var tasks = by('task'), index = {}, map = {}, walking = {};
+
+    // first row wins a duplicated id, which is how the rest of the page reads it
+    tasks.forEach(function (t) {
+      var k = idKeyOf(t.id);
+      if (k && !index[k]) index[k] = t;
+    });
+
+    /* Depth first, memoised. map is written before anything recurses back in,
+       so a chain that closes on itself is caught rather than run forever: the
+       re-entry lands on a loop marker, and every task on the ring picks it up
+       and is flagged. */
+    function resolve(t) {
+      if (map[t._u]) return map[t._u];
+      if (walking[t._u]) {
+        return (map[t._u] = { start: null, end: null, from: '', issue: 'loop', prereq: null, prereqEnd: null });
+      }
+      walking[t._u] = true;
+
+      var own = parseDate(t.start_date);
+      var d = num(t.duration_days);
+      var dur = (d !== null && d > 0) ? Math.round(d) : null;
+
+      var key = idKeyOf(t.prerequisites);
+      var p = (key && index[key] && index[key] !== t) ? index[key] : null;
+      var ps = p ? resolve(p) : null;
+      var loop = !!(ps && ps.issue === 'loop');
+      var pend = (ps && !loop) ? ps.end : null;
+
+      var start = own, from = own ? 'date' : '', issue = loop ? 'loop' : '';
+
+      if (!own && pend) { start = addDays(pend, 1); from = 'prereq'; }
+      if (own && pend && dayDiff(own, pend) >= 0) issue = 'clash';
+
+      return (map[t._u] = {
+        start: start,
+        end: (start && dur !== null) ? addDays(start, dur - 1) : null,
+        from: from,
+        issue: issue,
+        prereq: p,
+        prereqEnd: pend
+      });
+    }
+
+    tasks.forEach(resolve);
+    return map;
+  }
+
+  function schedOf(t) {
+    if (!schedCache) schedCache = buildSchedule();
+    return schedCache[t._u] || NO_SCHED;
+  }
+  function startOf(t) { return schedOf(t).start; }
+  function endOf(t)   { return schedOf(t).end; }
+
+  /* How a prerequisite is named wherever it is written out in full. */
+  function prereqLabel(p) {
+    return (p.id || '(no id)') + ' — ' + (p.task || 'untitled');
   }
 
   /* Today, as the calendar reads it here, pinned to UTC midnight like every
@@ -1447,18 +1613,52 @@ body.editing .addbar { display: flex; }
     return state.rows.map(function (r) { return r.type === 'task' ? sorted[n++] : r; });
   }
 
+  /* The prerequisite, read back out: the task it names and when that finishes,
+     or the raw text where the column holds a note rather than a task id. */
+  function prereqText(t) {
+    var sc = schedOf(t);
+    if (!sc.prereq) return t.prerequisites;
+    var e = endOf(sc.prereq);
+    return prereqLabel(sc.prereq) + (e ? ' · finishes ' + longDate(e) : ' · no finish date set');
+  }
+
+  /* Said in full at the top of the panel, in read and edit mode both, because
+     the flag on the bar only has room for the one word. */
+  function issueNote(t) {
+    var sc = schedOf(t);
+    if (!sc.issue) return '';
+    var msg;
+    if (sc.issue === 'loop') {
+      msg = 'The prerequisite chain from this task leads back to itself, so there is nothing ' +
+            'to work a start off. Only a start date set here will place the bar.';
+    } else {
+      var pe = endOf(sc.prereq);
+      msg = 'Starts ' + esc(longDate(sc.start)) + ', ' +
+            (pe && dayDiff(sc.start, pe) === 0 ? 'the day ' : 'before ') +
+            'prerequisite ' + esc(sc.prereq.id || 'task') + ' finishes' +
+            (pe ? ' (' + esc(longDate(pe)) + ')' : '') + '. ' +
+            'The start date has been used — the bar is where the work is planned, not where ' +
+            'the prerequisite would put it. Move the start date out, or drop the prerequisite, ' +
+            'to clear the flag.';
+    }
+    return '<div class="warnbox"><span class="wk">' + esc(ISSUE[sc.issue]) + '</span><span>' + msg + '</span></div>';
+  }
+
   function detailRead(t) {
     var fields = [
       ['Reference', t.reference],
       ['Crew', t.crew],
-      ['Prerequisites', t.prerequisites],
+      ['Prerequisite', prereqText(t)],
       ['Isolation required', t.isolation],
       ['Permit required', t.permit],
       ['Hold point / sign-off', t.hold_point],
       ['Schedule', (function () {
-        var s = startOf(t), e = endOf(t), d = num(t.duration_days);
+        var sc = schedOf(t), s = sc.start, e = sc.end, d = num(t.duration_days);
         if (!s || !e) return '';
         return rangeLabel(s, e) + ' (' + d + (d === 1 ? ' day' : ' days') + ')' +
+          (sc.from === 'prereq' && sc.prereq
+            ? ' · starts after ' + (sc.prereq.id || 'its prerequisite')
+            : ' · own start date') +
           (/^y/i.test(t.provisional) ? ' · provisional' : '');
       })()],
       ['Status', statusLabel(statusOf(t))],
@@ -1470,6 +1670,41 @@ body.editing .addbar { display: flex; }
         return '<div class="df"><span class="k">' + esc(f[0]) + '</span>' +
           '<span class="v' + (v ? '' : ' empty') + '">' + (v ? fmt(v) : 'Not yet defined') + '</span></div>';
       }).join('') + '</div>';
+  }
+
+  /* Prerequisite picker. Every open task is listed, so the one being looked for
+     is a scroll away rather than an id to be remembered and typed. Completed
+     work is left out - it can hold nothing up - and so is the task itself.
+     Whatever is already in the column is kept at the head of the list where the
+     quick list does not hold it, so editing a row never silently drops a
+     prerequisite that has since been completed, or a note written in that
+     column before this was a picker. */
+  function inPrereq(t) {
+    var cur = t.prerequisites || '';
+    var key = idKeyOf(cur), hit = null;
+
+    var list = sortTasks(by('task').filter(function (o) {
+      return o !== t && statusOf(o) !== 'complete' && idKeyOf(o.id) !== '';
+    }));
+    list.forEach(function (o) { if (key && idKeyOf(o.id) === key) hit = o; });
+
+    var head = '<option value=""' + (cur ? '' : ' selected') + '>— none —</option>';
+    if (cur && !hit) {
+      var done = by('task').filter(function (o) { return o !== t && idKeyOf(o.id) === key; })[0];
+      head += '<option value="' + esc(cur) + '" selected>' + esc(cur) +
+        (done ? ' — ' + (done.task || 'untitled') + ' · complete' : ' — kept as written, names no task') +
+        '</option>';
+    }
+
+    var body = list.map(function (o) {
+      var e = endOf(o);
+      return '<option value="' + esc(o.id) + '"' + (o === hit ? ' selected' : '') + '>' +
+        esc(o.id + ' — ' + (o.task || 'untitled') + (e ? ' · ends ' + shortDate(e) : ' · undated')) +
+        '</option>';
+    }).join('');
+
+    return '<select class="f-sel prereq" ' + at(t, 'prerequisites') + '>' + head +
+      (body ? '<optgroup label="Open tasks">' + body + '</optgroup>' : '') + '</select>';
   }
 
   function detailEdit(t) {
@@ -1487,7 +1722,10 @@ body.editing .addbar { display: flex; }
         fld('Start date', inDate(t, 'start_date')) +
         fld('Duration (days)', inNum(t, 'duration_days')) +
         fld('Dates provisional', inSelect(t, 'provisional', PROV_OPTS, rawProv(t))) +
+        fld('Prerequisite', inPrereq(t), true) +
         fld('Crew', inText(t, 'crew', 'Unassigned'), true) +
+        '<div class="edhint">Leave the start date empty and the task starts the day after its ' +
+          'prerequisite finishes. Set both and the start date wins — an overlap is flagged on the bar.</div>' +
       '</div>' +
       '<div class="dgrid">' +
         df('Task name', inText(t, 'task'), true) +
@@ -1496,7 +1734,6 @@ body.editing .addbar { display: flex; }
         df('Section number', inText(t, 'section')) +
         df('Section title', inText(t, 'section_title')) +
         df('Reference', inText(t, 'reference')) +
-        df('Prerequisites', inText(t, 'prerequisites')) +
         df('Isolation required', inText(t, 'isolation')) +
         df('Permit required', inText(t, 'permit')) +
         df('Hold point / sign-off', inText(t, 'hold_point')) +
@@ -1509,6 +1746,7 @@ body.editing .addbar { display: flex; }
     return '<div class="detail' + (state.open[t._u] ? ' open' : '') +
       '" role="region" aria-label="Detail for task ' + esc(t.id) + '">' +
       (statusOf(t) === 'complete' ? miniGantt(t) : '') +
+      issueNote(t) +
       (state.edit ? detailEdit(t) : detailRead(t)) + '</div>';
   }
 
@@ -1615,12 +1853,18 @@ body.editing .addbar { display: flex; }
 
   /* The one place a bar is built. Colour is the status, hatching means the dates
      are provisional, and a task with no dates gets a pale bar across the whole
-     track rather than nothing at all. The status label is written twice - once
-     inside the bar and once beside it - and CSS shows whichever the bar is wide
-     enough for. Neither is dropped, so the status always reads somewhere. */
+     track rather than nothing at all. A bar at odds with its prerequisite goes
+     charcoal with an orange edge and gives its label over to the flag - the
+     scheduling problem is the thing worth reading on that row, and the status
+     is still on the chip counts, in the detail panel and in the CSV. The label
+     is written twice - once inside the bar and once beside it - and CSS shows
+     whichever the bar is wide enough for. Neither is dropped, so it always
+     reads somewhere. */
   function barHTML(t, span) {
-    var s = startOf(t), e = endOf(t), st = statusOf(t);
-    var label = esc(statusLabel(st));
+    var sc = schedOf(t);
+    var s = sc.start, e = sc.end, st = statusOf(t);
+    var label = esc(sc.issue ? ISSUE[sc.issue] : statusLabel(st));
+    var flag = sc.issue ? ' clash' : '';
 
     // the bar and its two labels, given what goes on the left inside the bar
     var wrap = function (cls, style, leftText) {
@@ -1635,7 +1879,7 @@ body.editing .addbar { display: flex; }
 
     if (!span || !s || !e) {
       // Not flagged provisional - there are no dates to qualify.
-      return wrap('nosched', '', 'Anytime');
+      return wrap('nosched' + flag, '', 'Anytime');
     }
 
     var left = (dayDiff(span.start, s) / span.days) * 100,
@@ -1646,7 +1890,7 @@ body.editing .addbar { display: flex; }
     // wide enough to hold the label itself, so it never reaches the outside one.
     var flip = (100 - (left + width) < LABEL_SHARE) && (left > LABEL_SHARE);
 
-    return wrap((/^y/i.test(t.provisional) ? 'prov' : '') + (flip ? ' flip' : ''),
+    return wrap((/^y/i.test(t.provisional) ? 'prov' : '') + flag + (flip ? ' flip' : ''),
       ' style="left:' + left.toFixed(4) + '%;width:calc(' + width.toFixed(4) + '% - 3px)"',
       barLabel(s, e));
   }
@@ -1710,22 +1954,30 @@ body.editing .addbar { display: flex; }
               '</div><div class="track" style="' + grid + '"></div></div>';
 
       grp.items.forEach(function (t) {
-        var s = startOf(t), e = endOf(t);
+        var sc = schedOf(t), s = sc.start, e = sc.end;
         var isOpen = !!state.open[t._u];
         var dated = !!(span && s && e);
         var prov = /^y/i.test(t.provisional);
         var bar = barHTML(t, span);
 
-        var flags = [dated ? rangeLabel(s, e) : 'anytime'];
-        if (dated && prov) flags.push('provisional');
-        if (t.crew) flags.push(esc(t.crew));
+        var flags = [];
+        var fl = function (text, cls) {
+          flags.push('<span class="fl' + (cls ? ' ' + cls : '') + '">' + text + '</span>');
+        };
+
+        fl(dated ? esc(rangeLabel(s, e)) : 'anytime');
+        if (dated && prov) fl('provisional');
+        if (sc.from === 'prereq' && sc.prereq) fl('after ' + esc(sc.prereq.id || 'its prerequisite'));
+        if (sc.issue === 'clash') fl('clashes with ' + esc(sc.prereq.id || 'its prerequisite'), 'warn');
+        else if (sc.issue === 'loop') fl('circular prerequisite', 'warn');
+        if (t.crew) fl(esc(t.crew));
 
         html += '<div class="grow task' + (isOpen ? ' open' : '') + '" data-uid="' + t._u +
                 '" role="button" tabindex="0" aria-expanded="' + isOpen + '">' +
                   '<div class="gname">' +
                     '<span class="tw"><span class="tid">' + esc(t.id) + '</span>' +
                       '<span class="tname">' + esc(t.task) + '</span>' +
-                      (flags.length ? '<span class="tmeta">' + flags.join(' · ') + '</span>' : '') +
+                      (flags.length ? '<span class="tmeta">' + flags.join('') + '</span>' : '') +
                     '</span>' +
                     '<span class="caret" aria-hidden="true">&#9654;</span>' +
                   '</div>' +
@@ -1787,6 +2039,7 @@ body.editing .addbar { display: flex; }
     items.push('<span class="li"><span class="sw" data-s="complete"></span>Complete — listed in the Completed section</span>');
     items.push('<span class="li"><span class="sw prov"></span>Hatched over the status colour = provisional dates</span>');
     items.push('<span class="li"><span class="sw nosched"></span>Pale over the status colour = anytime, no start date set</span>');
+    items.push('<span class="li"><span class="sw clash"></span>Charcoal with an orange edge = starts on or before its prerequisite finishes</span>');
     items.push('<span class="li"><span class="sw today"></span>Today</span>');
     items.push('<span class="li"><span class="sw pastwash"></span>Shaded = already gone by</span>');
     $('#legend').innerHTML = items.join('');
@@ -1828,6 +2081,7 @@ body.editing .addbar { display: flex; }
      warning always agree about whether there is work to export. */
   function touch() {
     state.dirty = true;
+    invalidateSchedule();
     renderSource();
   }
 
@@ -1881,21 +2135,60 @@ body.editing .addbar { display: flex; }
     return r;
   }
 
-  /* Next free id inside a section (2 -> 2.6). Sectionless rows get a plain
-     placeholder - the id field is editable, so it is only a starting point. */
+  /* "CSTR_FDR.002" -> prefix "CSTR_FDR.", number "002". Anything with digits on
+     the end splits; anything without does not. */
+  function idParts(id) { return /^(.*?)([0-9]+)$/.exec(String(id || '').trim()); }
+
+  /* Number an id carries under a given prefix, or null. Compared as plain
+     strings rather than built into a pattern - a prefix is whatever someone
+     typed in the id field, and it is not worth escaping into a regex. */
+  function numUnder(id, prefix) {
+    if (id.length <= prefix.length || id.slice(0, prefix.length) !== prefix) return null;
+    var tail = id.slice(prefix.length);
+    return /^[0-9]+$/.test(tail) ? +tail : null;
+  }
+
+  /* Next id in a section, taken off the last one already there and stepped by
+     one: CSTR_FDR.002 -> CSTR_FDR.003. Both the prefix and the zero padding come
+     from the id in use, so a section keeps whatever numbering it was written
+     with and a new section falls back to its own number. The step is off the
+     highest in use rather than off the last row, so an id cannot be handed out
+     twice where a section has been re-ordered or one deleted out of the middle.
+     Sectionless rows get a plain placeholder. All of it is a starting point -
+     the id field is editable. */
   function nextTaskId(section) {
-    var ids = by('task').map(function (t) { return t.id; });
-    if (section) {
-      var max = 0;
-      ids.forEach(function (id) {
-        var m = /^(.+)\.(\d+)$/.exec(id);
-        if (m && m[1] === section) max = Math.max(max, +m[2]);
-      });
-      return section + '.' + (max + 1);
+    var tasks = by('task');
+    var ids = tasks.map(function (t) { return String(t.id || '').trim(); })
+                   .filter(function (id) { return id !== ''; });
+
+    if (!section) {
+      var k = 1;
+      while (ids.indexOf('new-' + k) !== -1) k++;
+      return 'new-' + k;
     }
-    var n = 1;
-    while (ids.indexOf('new-' + n) !== -1) n++;
-    return 'new-' + n;
+
+    // last id written in this section, and the last one written anywhere
+    var lastIn = '', lastAny = '';
+    sortTasks(tasks).forEach(function (t) {
+      var id = String(t.id || '').trim();
+      if (!id) return;
+      lastAny = id;
+      if (t.section === section) lastIn = id;
+    });
+
+    var mine = idParts(lastIn), any = idParts(lastAny);
+    var prefix = mine ? mine[1] : section + '.';
+    var pad = (mine || any) ? (mine || any)[2].length : 1;
+
+    var max = 0;
+    ids.forEach(function (id) {
+      var n = numUnder(id, prefix);
+      if (n !== null) max = Math.max(max, n);
+    });
+
+    var n = String(max + 1);
+    while (n.length < pad) n = '0' + n;
+    return prefix + n;
   }
 
   function nextId(type, prefix) {
@@ -1966,6 +2259,7 @@ body.editing .addbar { display: flex; }
     var rows = parseCSV(text);
     if (!rows.length) throw new Error('CSV contained no data rows');
     rows.forEach(function (r, i) { r._i = i; r._u = 'u' + (++uidSeq); });
+    invalidateSchedule();
     state.open = {};
     state.rows = rows;
     state.source = source;
@@ -1978,6 +2272,7 @@ body.editing .addbar { display: flex; }
 
   /* No data at all. Say why rather than rendering an empty shell. */
   function showNoData(reason) {
+    invalidateSchedule();
     state.rows = [];
     state.source = { kind: 'error', label: reason };
     $('#no-data-text').textContent = reason;
@@ -2165,9 +2460,10 @@ body.editing .addbar { display: flex; }
      filtered down to at the time. Completed work stays off it, the same way it
      is lifted off the chart on the page.
 
-     The task column is cut back to the three things that identify a row on a
-     printed sheet: title, task id, crew. Everything else is in the detail
-     panels on the page and in the CSV.
+     The task column is cut back to what identifies a row on a printed sheet:
+     title, task id, crew, and what the row follows where it is scheduled off
+     another task. Everything else is in the detail panels on the page and in
+     the CSV.
 
      The date scale and the bars come out of programmeSpan() and barHTML(),
      the same two the page draws with, so the sheet and the screen can never
@@ -2244,6 +2540,7 @@ body.editing .addbar { display: flex; }
     '.tmeta{display:flex;gap:12px;flex-wrap:wrap;font-family:var(--mono);font-size:8.5px;',
       'color:var(--ink-3);letter-spacing:.04em;margin-top:2px}',
     '.tmeta .tid{color:var(--ink-2)}',
+    '.tmeta .tpre{color:var(--orange-mid)}',
     '.track{position:absolute;inset:0}',
 
     /* bars - barHTML() writes the markup, so these are the page rules scaled down */
@@ -2272,6 +2569,12 @@ body.editing .addbar { display: flex; }
       'background-color:color-mix(in srgb,var(--bar) 15%,#fff);border:1px dashed var(--bar);',
       'color:var(--bar);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase}',
 
+    /* at odds with its prerequisite - last, so it takes the edge off .prov and
+       .nosched on a bar that is both */
+    '.barwrap.clash{--bar:var(--charcoal)}',
+    '.barwrap.clash .bar{border:1px dashed var(--orange)}',
+    '.barwrap.clash .bo{color:var(--orange-mid);font-weight:700}',
+
     /* legend */
     '.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;font-size:11px;',
       'color:var(--ink-2);break-inside:avoid;page-break-inside:avoid}',
@@ -2285,7 +2588,8 @@ body.editing .addbar { display: flex; }
     '.legend .sw.prov{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.18) 0 6px,',
       'rgba(255,255,255,0) 6px 12px);border:1px dashed rgba(255,255,255,.7)}',
     '.legend .sw.nosched{background-color:var(--panel);',
-      'background-color:color-mix(in srgb,var(--sw) 15%,#fff);border:1px dashed var(--sw)}'
+      'background-color:color-mix(in srgb,var(--sw) 15%,#fff);border:1px dashed var(--sw)}',
+    '.legend .sw.clash{--sw:var(--charcoal);border:1px dashed var(--orange)}'
   ].join('');
 
   /* Runs inside the export window. Waits for the web fonts before it prints -
@@ -2331,11 +2635,19 @@ body.editing .addbar { display: flex; }
 
       grp.items.forEach(function (t) {
         // title, id, crew - an unset id or crew reads as a dash rather than a gap
+        var sc = schedOf(t);
+        var pre = '';
+        if (sc.issue === 'loop') pre = '<span class="tpre">circular prerequisite</span>';
+        else if (sc.prereq && (sc.from === 'prereq' || sc.issue)) {
+          pre = '<span class="tpre">' + (sc.issue === 'clash' ? 'clashes with ' : 'after ') +
+                esc(sc.prereq.id || 'prerequisite') + '</span>';
+        }
         body += '<tr class="task"><td class="ncell">' +
                   '<div class="tname">' + esc(t.task) + '</div>' +
                   '<div class="tmeta">' +
                     '<span class="tid">' + esc(t.id || '—') + '</span>' +
                     '<span class="tcrew">Crew ' + esc(t.crew || '—') + '</span>' +
+                    pre +
                   '</div>' +
                 '</td>' +
                 '<td class="tcell"><div class="track" style="' + grid + '">' +
@@ -2349,6 +2661,7 @@ body.editing .addbar { display: flex; }
     });
     legend.push('<span class="li"><span class="sw prov"></span>Hatched — provisional dates</span>');
     legend.push('<span class="li"><span class="sw nosched"></span>Pale — anytime, no start date set</span>');
+    legend.push('<span class="li"><span class="sw clash"></span>Charcoal — starts on or before its prerequisite finishes</span>');
     legend.push('<span class="li"><span class="sw today"></span>Today</span>');
     legend.push('<span class="li"><span class="sw pastwash"></span>Shaded — already gone by</span>');
 
