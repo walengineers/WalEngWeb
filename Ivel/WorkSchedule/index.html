@@ -635,8 +635,16 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
 
 /* ───────────────────────── detail panel ───────────────────────── */
 
+/* Lifted over the today cursor. The cursor is one rule absolutely positioned
+   down the whole chart (see .todaynow), so an expanded panel would otherwise
+   have it drawn straight through the dropdowns and data fields. Raising the
+   panel puts the rule behind it, where it belongs - the cursor points at bars
+   on the track, and there is no track in here. The z-index opens a stacking
+   context, which the mini gantt's own cursor sits inside quite happily. */
 .detail {
   display: none;
+  position: relative;
+  z-index: 5;
   background: var(--panel);
   border-top: 1px solid var(--orange-line);
   border-bottom: 1px solid var(--line);
@@ -1311,9 +1319,17 @@ body.editing .addbar { display: flex; }
      than buried in the detail panel. Handover is the day after, so a start on
      the finish day is already an overlap.
 
+     The overlap is measured against the prerequisite's finish where it has one.
+     A prerequisite with no duration has no finish, so its start is used
+     instead - it cannot end before it begins, so a task starting on or before
+     that overlaps it whatever the duration turns out to be. Scheduling is
+     stricter than flagging here: a task is only placed off a prerequisite that
+     has a real finish date, never off one that is merely started.
+
      Anything in prerequisites that names no task is left alone as free text. It
      neither schedules nor flags, so notes already sitting in that column read
-     as they always did.
+     as they always did - but the row says "prerequisite not linked", because
+     otherwise it is indistinguishable on the chart from one that is.
 
      duration_days counts the start date as day one, so a 1-day task starts and
      finishes the same day. */
@@ -1323,7 +1339,8 @@ body.editing .addbar { display: flex; }
     loop:  'Loop'
   };
 
-  var NO_SCHED = { start: null, end: null, from: '', issue: '', prereq: null, prereqEnd: null };
+  var NO_SCHED = { start: null, end: null, from: '', issue: '', prereq: null, prereqEnd: null,
+                   unlinked: false };
 
   /* Worked out for every task at once and held until the next edit - see
      touch(). Keyed on _u, so it survives a row being renamed or re-indexed. */
@@ -1348,7 +1365,8 @@ body.editing .addbar { display: flex; }
     function resolve(t) {
       if (map[t._u]) return map[t._u];
       if (walking[t._u]) {
-        return (map[t._u] = { start: null, end: null, from: '', issue: 'loop', prereq: null, prereqEnd: null });
+        return (map[t._u] = { start: null, end: null, from: '', issue: 'loop', prereq: null,
+                              prereqEnd: null, unlinked: false });
       }
       walking[t._u] = true;
 
@@ -1362,10 +1380,18 @@ body.editing .addbar { display: flex; }
       var loop = !!(ps && ps.issue === 'loop');
       var pend = (ps && !loop) ? ps.end : null;
 
+      /* What the start date is measured against. Normally the prerequisite's
+         finish. Where the prerequisite carries no duration it has no finish,
+         but it still cannot end before it begins, so its start stands in: a
+         task starting on or before that is overlapping whatever the duration
+         turns out to be. Scheduling below still waits for a real finish - a
+         task cannot be placed the day after a date that is not known. */
+      var pref = pend || ((ps && !loop) ? ps.start : null);
+
       var start = own, from = own ? 'date' : '', issue = loop ? 'loop' : '';
 
       if (!own && pend) { start = addDays(pend, 1); from = 'prereq'; }
-      if (own && pend && dayDiff(own, pend) >= 0) issue = 'clash';
+      if (own && pref && dayDiff(own, pref) >= 0) issue = 'clash';
 
       return (map[t._u] = {
         start: start,
@@ -1373,7 +1399,11 @@ body.editing .addbar { display: flex; }
         from: from,
         issue: issue,
         prereq: p,
-        prereqEnd: pend
+        prereqEnd: pend,
+        /* Something is written in the column but it names no task on the
+           schedule, so nothing here is scheduled or checked against it. Held
+           so the row can say as much rather than look like a linked one. */
+        unlinked: !!(key && !p)
       });
     }
 
@@ -1617,9 +1647,15 @@ body.editing .addbar { display: flex; }
      or the raw text where the column holds a note rather than a task id. */
   function prereqText(t) {
     var sc = schedOf(t);
-    if (!sc.prereq) return t.prerequisites;
+    if (!sc.prereq) {
+      return sc.unlinked
+        ? t.prerequisites + ' · names no task on this schedule, so nothing is scheduled or checked against it'
+        : t.prerequisites;
+    }
     var e = endOf(sc.prereq);
-    return prereqLabel(sc.prereq) + (e ? ' · finishes ' + longDate(e) : ' · no finish date set');
+    return prereqLabel(sc.prereq) +
+      (e ? ' · finishes ' + longDate(e)
+         : ' · no duration set, so no finish date — checked against its start instead');
   }
 
   /* Said in full at the top of the panel, in read and edit mode both, because
@@ -1632,14 +1668,20 @@ body.editing .addbar { display: flex; }
       msg = 'The prerequisite chain from this task leads back to itself, so there is nothing ' +
             'to work a start off. Only a start date set here will place the bar.';
     } else {
-      var pe = endOf(sc.prereq);
-      msg = 'Starts ' + esc(longDate(sc.start)) + ', ' +
-            (pe && dayDiff(sc.start, pe) === 0 ? 'the day ' : 'before ') +
-            'prerequisite ' + esc(sc.prereq.id || 'task') + ' finishes' +
-            (pe ? ' (' + esc(longDate(pe)) + ')' : '') + '. ' +
-            'The start date has been used — the bar is where the work is planned, not where ' +
-            'the prerequisite would put it. Move the start date out, or drop the prerequisite, ' +
-            'to clear the flag.';
+      /* Where the prerequisite has no duration there is no finish to name, so
+         the note says what was actually compared - its start - rather than
+         claiming a finish date the schedule does not hold. */
+      var pe = endOf(sc.prereq), pid = esc(sc.prereq.id || 'task');
+      msg = pe
+        ? 'Starts ' + esc(longDate(sc.start)) + ', ' +
+          (dayDiff(sc.start, pe) === 0 ? 'the day ' : 'before ') +
+          'prerequisite ' + pid + ' finishes (' + esc(longDate(pe)) + '). '
+        : 'Starts ' + esc(longDate(sc.start)) + ', on or before prerequisite ' + pid +
+          ' starts (' + esc(longDate(startOf(sc.prereq))) + '). That task has no duration set, ' +
+          'so it has no finish date — it can only finish later still, so the overlap stands. ';
+      msg += 'The start date has been used — the bar is where the work is planned, not where ' +
+             'the prerequisite would put it. Move the start date out, or drop the prerequisite, ' +
+             'to clear the flag.';
     }
     return '<div class="warnbox"><span class="wk">' + esc(ISSUE[sc.issue]) + '</span><span>' + msg + '</span></div>';
   }
@@ -1970,6 +2012,7 @@ body.editing .addbar { display: flex; }
         if (sc.from === 'prereq' && sc.prereq) fl('after ' + esc(sc.prereq.id || 'its prerequisite'));
         if (sc.issue === 'clash') fl('clashes with ' + esc(sc.prereq.id || 'its prerequisite'), 'warn');
         else if (sc.issue === 'loop') fl('circular prerequisite', 'warn');
+        if (sc.unlinked) fl('prerequisite not linked', 'warn');
         if (t.crew) fl(esc(t.crew));
 
         html += '<div class="grow task' + (isOpen ? ' open' : '') + '" data-uid="' + t._u +
@@ -2077,11 +2120,49 @@ body.editing .addbar { display: flex; }
     undo.title = undoSnapshot ? 'Restore ' + undoSnapshot.what : '';
   }
 
+  /* The header's "Updated" stamp, kept honest. Every edit goes through touch(),
+     so what the strip shows is when the schedule was last changed rather than
+     whatever was typed into the CSV once and left behind. Written into the meta
+     row, so it goes out with "Export CSV" and the sheet agrees with the file.
+
+     Meta rows are display-only on this page - there is no field here to fight
+     with while it is being typed into - so it is safe to rewrite on every
+     keystroke.
+
+     The row itself is put there by ensureUpdatedRow() when the CSV loads, not
+     here. Adding a row reindexes every row behind it, and touch() runs on the
+     keystroke - the field being typed into addresses its row by index, so
+     shifting them underneath it would send the next character to the wrong
+     row. Nothing is inserted once editing is under way. */
+  function stampUpdated() {
+    var r = state.rows.filter(function (x) {
+      return x.type === 'meta' && x.id === 'updated';
+    })[0];
+    if (r) r.description = stampText();
+  }
+
+  /* Run once per load, before anything can be edited. A schedule whose CSV
+     carries no "updated" row still gets stamped on the first edit. Left blank
+     until then - renderHeader() drops empty fields, so the strip reads as it
+     always did until there is something to say. */
+  function ensureUpdatedRow() {
+    if (!state.rows.length) return;
+    var has = state.rows.some(function (x) {
+      return x.type === 'meta' && x.id === 'updated';
+    });
+    if (has) return;
+    var r = newRow('meta');
+    r.id = 'updated';
+    insertAfterLast(r, function (x) { return x.type === 'meta'; });
+  }
+
   /* Every change goes through here, so the footer and the leave-the-page
      warning always agree about whether there is work to export. */
   function touch() {
     state.dirty = true;
     invalidateSchedule();
+    stampUpdated();
+    renderHeader();
     renderSource();
   }
 
@@ -2266,6 +2347,7 @@ body.editing .addbar { display: flex; }
     state.dirty = false;
     hidden = {};
     undoSnapshot = null;
+    ensureUpdatedRow();   // before anything can be edited - see stampUpdated()
     $('#no-data').hidden = true;
     renderAll();
   }
@@ -2589,7 +2671,21 @@ body.editing .addbar { display: flex; }
       'rgba(255,255,255,0) 6px 12px);border:1px dashed rgba(255,255,255,.7)}',
     '.legend .sw.nosched{background-color:var(--panel);',
       'background-color:color-mix(in srgb,var(--sw) 15%,#fff);border:1px dashed var(--sw)}',
-    '.legend .sw.clash{--sw:var(--charcoal);border:1px dashed var(--orange)}'
+    '.legend .sw.clash{--sw:var(--charcoal);border:1px dashed var(--orange)}',
+
+    /* requires confirmation - carried onto the sheet under the chart, sized
+       down from the block on the page but the same amber edge, so the two are
+       recognisably the same list */
+    '.conf{margin-top:20px;break-inside:avoid;page-break-inside:avoid}',
+    '.conf h2{font-family:var(--cond);font-size:14px;font-weight:700;text-transform:uppercase;',
+      'letter-spacing:.06em;margin:0 0 3px}',
+    '.conf .note{font-size:10.5px;color:var(--ink-3);margin:0 0 9px}',
+    '.conf .ci{background:var(--white);border:1px solid var(--line);',
+      'border-left:3px solid var(--st-hold);padding:8px 11px;margin-bottom:6px;',
+      'break-inside:avoid;page-break-inside:avoid}',
+    '.conf .ci h4{font-family:var(--cond);font-size:12px;font-weight:600;text-transform:uppercase;',
+      'letter-spacing:.04em;margin:0 0 2px}',
+    '.conf .ci p{font-size:11px;color:var(--ink-2);margin:0}'
   ].join('');
 
   /* Runs inside the export window. Waits for the web fonts before it prints -
@@ -2642,6 +2738,7 @@ body.editing .addbar { display: flex; }
           pre = '<span class="tpre">' + (sc.issue === 'clash' ? 'clashes with ' : 'after ') +
                 esc(sc.prereq.id || 'prerequisite') + '</span>';
         }
+        else if (sc.unlinked) pre = '<span class="tpre">prerequisite not linked</span>';
         body += '<tr class="task"><td class="ncell">' +
                   '<div class="tname">' + esc(t.task) + '</div>' +
                   '<div class="tmeta">' +
@@ -2664,6 +2761,21 @@ body.editing .addbar { display: flex; }
     legend.push('<span class="li"><span class="sw clash"></span>Charcoal — starts on or before its prerequisite finishes</span>');
     legend.push('<span class="li"><span class="sw today"></span>Today</span>');
     legend.push('<span class="li"><span class="sw pastwash"></span>Shaded — already gone by</span>');
+
+    /* The confirmation list rides along under the chart. These are the
+       decisions the programme is waiting on, so a sheet handed over without
+       them shows dates without saying what is still holding them up. Left off
+       entirely when there is nothing on it. */
+    var conf = by('confirm');
+    var confHTML = conf.length
+      ? '<div class="conf"><h2>Requires confirmation before scheduling</h2>' +
+          '<p class="note">Tasks that require decisions to be made.</p>' +
+          conf.map(function (r) {
+            return '<div class="ci"><h4>' + esc(r.task || r.id || 'Untitled') + '</h4>' +
+              (r.description ? '<p>' + fmt(r.description) + '</p>' : '') + '</div>';
+          }).join('') +
+        '</div>'
+      : '';
 
     var strip = [['Client', meta('client')], ['Doc ref', meta('doc_ref')],
                  ['Revision', meta('revision')], ['Printed', stampText()]]
@@ -2692,7 +2804,7 @@ body.editing .addbar { display: flex; }
             '<th class="tcell"><div class="mons">' + monthCells(span) + '</div>' +
               '<div class="days">' + dayCells(span) + '</div></th></tr></thead>' +
           '<tbody>' + body + '</tbody></table>' +
-        '<div class="legend">' + legend.join('') + '</div>' +
+        '<div class="legend">' + legend.join('') + '</div>' + confHTML +
       '</div><scr' + 'ipt>' + GANTT_PRINT_KICK + '</scr' + 'ipt></body></html>';
   }
 
