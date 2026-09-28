@@ -69,7 +69,8 @@
 
     Edits live for the session only. Nothing is written to the browser and
     nothing is written back to the CSV. Press "Export CSV" to keep them - the
-    file is stamped with the time it was taken, WorkSchedule_YYMMDDTHHMM.csv,
+    file is named from doc_title and stamped with the time it was taken,
+    <doc_title>_YYMMDDTHHMM.csv (WorkSchedule_... if doc_title is blank),
     so it lands beside the others rather than over them. Reloading, or loading
     another CSV, throws unsaved edits away - the page warns first.
 
@@ -1143,7 +1144,8 @@ body.editing .addbar { display: flex; }
   var CSV_URL   = '';
   var LOCAL_CSV = 'WorkSchedule.csv';
 
-  /* Exports are stamped: EXPORT_BASE_YYMMDDTHHMM.csv - see exportName(). */
+  /* Exports are stamped: <doc_title>_YYMMDDTHHMM.csv - see exportName().
+     EXPORT_BASE is the fallback when doc_title is blank. */
   var EXPORT_BASE = 'WorkSchedule';
 
   var COLS = ['type','id','section','section_title','task','start_date','duration_days',
@@ -2825,11 +2827,16 @@ body.editing .addbar { display: flex; }
     w.document.close();
   });
 
-  /* WorkSchedule_260817T1432.csv - local time, 24 hour. Every export is its own
-     file, in date order in the folder, so one never quietly overwrites another. */
+  /* <doc_title>_260817T1432.csv - local time, 24 hour. Every export is its own
+     file, in date order in the folder, so one never quietly overwrites another.
+     Characters Windows won't take in a file name are stripped and spaces
+     become underscores; a blank
+     doc_title falls back to EXPORT_BASE. */
   function exportName() {
     var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
-    return EXPORT_BASE + '_' + String(d.getFullYear()).slice(2) + p(d.getMonth() + 1) +
+    var base = meta('doc_title').replace(/[\\\/:*?"<>|\x00-\x1f]/g, '').trim()
+      .replace(/\.+$/, '').trim().replace(/\s+/g, '_') || EXPORT_BASE;
+    return base + '_' + String(d.getFullYear()).slice(2) + p(d.getMonth() + 1) +
       p(d.getDate()) + 'T' + p(d.getHours()) + p(d.getMinutes()) + '.csv';
   }
 
