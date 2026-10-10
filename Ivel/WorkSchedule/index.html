@@ -78,6 +78,10 @@
     listed in the "Completed" section, tagged with the section it came from.
     Set the status back to move it into the schedule again.
 
+    Status "complete-kept" is complete work that stays on the chart. The bar
+    is drawn in the complete colour, it is counted as complete, and it is not
+    repeated in the "Completed" section.
+
   Column reference:
     type            meta | note | task | confirm
                     (scope_in / scope_out rows are no longer rendered - the
@@ -91,7 +95,8 @@
     duration_days   whole calendar days, counting the start date as day one.
                     Weekends are not skipped.
     provisional     yes = hatched bar, flagged as not yet confirmed
-    status          not-started | in-progress | complete | blocked | on-hold
+    status          not-started | in-progress | complete | complete-kept |
+                    blocked | on-hold
     crew            who is assigned
     description     detail text (also the value column for meta rows)
     reference       source reference
@@ -290,10 +295,12 @@ h2 {
 .tile[data-s="not-started"] { border-top-color: var(--st-not); }
 .tile[data-s="in-progress"] { border-top-color: var(--st-prog); }
 .tile[data-s="complete"]    { border-top-color: var(--st-done); }
+.tile[data-s="complete-kept"] { border-top-color: var(--st-done); }
 .tile[data-s="blocked"]     { border-top-color: var(--st-block); }
 .tile[data-s="on-hold"]     { border-top-color: var(--st-hold); }
 .tile[data-s="in-progress"] .n { color: var(--st-prog); }
 .tile[data-s="complete"]    .n { color: var(--st-done); }
+.tile[data-s="complete-kept"] .n { color: var(--st-done); }
 .tile[data-s="blocked"]     .n { color: var(--st-block); }
 .tile[data-s="on-hold"]     .n { color: var(--st-hold); }
 
@@ -535,6 +542,7 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
 }
 .track .barwrap[data-status="in-progress"] { --bar: var(--st-prog); }
 .track .barwrap[data-status="complete"]    { --bar: var(--st-done); }
+.track .barwrap[data-status="complete-kept"] { --bar: var(--st-done); }
 .track .barwrap[data-status="blocked"]     { --bar: var(--st-block); }
 .track .barwrap[data-status="on-hold"]     { --bar: var(--st-hold); }
 
@@ -753,6 +761,7 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
 .legend .sw { --sw: var(--st-not); width: 22px; height: 14px; background: var(--sw); flex: none; }
 .legend .sw[data-s="in-progress"] { --sw: var(--st-prog); }
 .legend .sw[data-s="complete"]    { --sw: var(--st-done); }
+.legend .sw[data-s="complete-kept"] { --sw: var(--st-done); }
 .legend .sw[data-s="blocked"]     { --sw: var(--st-block); }
 .legend .sw[data-s="on-hold"]     { --sw: var(--st-hold); }
 .legend .sw.prov {
@@ -799,6 +808,7 @@ input[type="search"]:focus { outline: 2px solid var(--orange); outline-offset: -
 }
 .f-sel[data-st="in-progress"] { color: var(--st-prog); }
 .f-sel[data-st="complete"]    { color: var(--st-done); }
+.f-sel[data-st="complete-kept"] { color: var(--st-done); }
 .f-sel[data-st="blocked"]     { color: var(--st-block); }
 .f-sel[data-st="on-hold"]     { color: var(--st-hold); }
 
@@ -834,9 +844,10 @@ body.editing .addbar { display: flex; }
 .btn.add:hover { background: var(--orange); border-color: var(--orange); color: #fff; }
 .btn.addmini { font-size: 10px; padding: 4px 9px; letter-spacing: 0.04em; }
 
-/* the per-section "+ Task" button sits at the right of the section heading row */
+/* the per-section add buttons - one "+ Task", or one per id prefix where a
+   section mixes them - sit together at the right of the section heading row */
 .sechead .gname { display: flex; align-items: center; gap: 6px; }
-.sechead .gname .addmini { margin-left: auto; }
+.sechead .gname .adds { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
 
 /* status / dates / crew pulled to the top of the detail panel — the fields
    that get changed most often on site */
@@ -1156,6 +1167,8 @@ body.editing .addbar { display: flex; }
     { k: 'not-started', label: 'Not started' },
     { k: 'in-progress', label: 'In progress' },
     { k: 'complete',    label: 'Complete' },
+    // complete, but left on the chart - the bar carries the short label
+    { k: 'complete-kept', label: 'Complete — kept on chart', bar: 'Complete' },
     { k: 'blocked',     label: 'Blocked' },
     { k: 'on-hold',     label: 'On hold' }
   ];
@@ -1264,6 +1277,11 @@ body.editing .addbar { display: flex; }
   function statusLabel(k) {
     var m = STATUSES.filter(function (s) { return s.k === k; })[0];
     return m ? m.label : '';
+  }
+  /* Both complete states, whether or not the task stays on the chart. */
+  function isDone(r) {
+    var s = statusOf(r);
+    return s === 'complete' || s === 'complete-kept';
   }
   function rawProv(r) {
     var p = (r.provisional || '').toLowerCase();
@@ -1559,10 +1577,11 @@ body.editing .addbar { display: flex; }
   }
 
   /* Complete is not offered as a filter - completed work lives in its own
-     section, so the chips only ever act on what is still open. */
+     section, so the chips only ever act on what is on the chart. Complete work
+     kept on the chart gets a chip of its own. */
   function renderFilters() {
     var tasks = openTasks();
-    var opts = [{ k: 'all', label: 'All open', n: tasks.length }].concat(
+    var opts = [{ k: 'all', label: 'All on chart', n: tasks.length }].concat(
       STATUSES.filter(function (st) { return st.k !== 'complete'; }).map(function (st) {
         return { k: st.k, label: st.label, n: tasks.filter(function (t) { return statusOf(t) === st.k; }).length };
       }).filter(function (o) { return o.n > 0; })
@@ -1581,6 +1600,7 @@ body.editing .addbar { display: flex; }
     if (!q) return true;
     return COLS.some(function (c) { return (t[c] || '').toLowerCase().indexOf(q) !== -1; });
   }
+  /* Everything drawn on the chart: open work plus complete work kept on it. */
   function openTasks() {
     return by('task').filter(function (t) { return statusOf(t) !== 'complete'; });
   }
@@ -1728,7 +1748,7 @@ body.editing .addbar { display: flex; }
     var key = idKeyOf(cur), hit = null;
 
     var list = sortTasks(by('task').filter(function (o) {
-      return o !== t && statusOf(o) !== 'complete' && idKeyOf(o.id) !== '';
+      return o !== t && !isDone(o) && idKeyOf(o.id) !== '';
     }));
     list.forEach(function (o) { if (key && idKeyOf(o.id) === key) hit = o; });
 
@@ -1907,7 +1927,8 @@ body.editing .addbar { display: flex; }
   function barHTML(t, span) {
     var sc = schedOf(t);
     var s = sc.start, e = sc.end, st = statusOf(t);
-    var label = esc(sc.issue ? ISSUE[sc.issue] : statusLabel(st));
+    var stDef = STATUSES.filter(function (x) { return x.k === st; })[0];
+    var label = esc(sc.issue ? ISSUE[sc.issue] : (stDef && stDef.bar) || statusLabel(st));
     var flag = sc.issue ? ' clash' : '';
 
     // the bar and its two labels, given what goes on the left inside the bar
@@ -1961,6 +1982,22 @@ body.editing .addbar { display: flex; }
       '</div>';
   }
 
+  /* The add button(s) on a section heading. A section written under one id
+     prefix gets a single "+ Task"; one that mixes prefixes (CSTR_LDOUT.nnn and
+     CSTR_LDOUT_LCS01.nnn) gets a button per prefix, so the new id is numbered
+     under the prefix picked rather than guessed. */
+  function addButtons(sec, title) {
+    var btn = function (prefix, label) {
+      return '<button type="button" class="btn add addmini" data-add="task" data-section="' +
+             esc(sec) + '" data-title="' + esc(title || '') + '" data-prefix="' + esc(prefix) + '">' +
+             esc(label) + '</button>';
+    };
+    var prefixes = sectionPrefixes(sec);
+    return '<span class="adds">' + (prefixes.length > 1
+      ? prefixes.map(function (p) { return btn(p, '+ ' + p.replace(/\.$/, '')); }).join('')
+      : btn(prefixes[0] || '', '+ Task')) + '</span>';
+  }
+
   function renderGantt() {
     var tasks = visibleTasks();
     var g = $('#gantt');
@@ -1993,8 +2030,7 @@ body.editing .addbar { display: flex; }
       var sec = key === '—' ? '' : key;
       html += '<div class="grow sechead"><div class="gname"><span class="num">' + esc(key) + '</span>' +
               esc(grp.title || '') +
-              (state.edit ? '<button type="button" class="btn add addmini" data-add="task" data-section="' +
-                 esc(sec) + '" data-title="' + esc(grp.title || '') + '">+ Task</button>' : '') +
+              (state.edit ? addButtons(sec, grp.title) : '') +
               '</div><div class="track" style="' + grid + '"></div></div>';
 
       grp.items.forEach(function (t) {
@@ -2112,7 +2148,8 @@ body.editing .addbar { display: flex; }
     var bits = [
       '<span><span class="dot ' + cls + '"></span>' + esc(state.source.label) + '</span>',
       '<span>Rendered ' + new Date().toLocaleString('en-AU') + '</span>',
-      '<span>' + openTasks().length + ' open · ' + doneTasks().length + ' complete</span>'
+      '<span>' + by('task').filter(function (t) { return !isDone(t); }).length + ' open · ' +
+        by('task').filter(isDone).length + ' complete</span>'
     ];
     if (state.dirty) bits.push('<span>Unsaved edits — press Export CSV</span>');
     $('#srcbar').innerHTML = bits.join('');
@@ -2231,6 +2268,32 @@ body.editing .addbar { display: flex; }
     return /^[0-9]+$/.test(tail) ? +tail : null;
   }
 
+  /* The id prefixes a section is written under, alphabetical. Every task in the
+     section counts, complete or filtered out or not, so the buttons do not come
+     and go with the filter. */
+  function sectionPrefixes(section) {
+    var seen = {};
+    by('task').forEach(function (t) {
+      if ((t.section || '') !== section) return;
+      var m = idParts(t.id);
+      if (m && m[1]) seen[m[1]] = true;
+    });
+    return Object.keys(seen).sort();
+  }
+
+  /* One past the highest number in use under a prefix, zero-padded to match
+     the id carrying that number: CSTR_LDOUT.004 -> CSTR_LDOUT.005. */
+  function stepUnder(ids, prefix) {
+    var max = 0, pad = 1;
+    ids.forEach(function (id) {
+      var n = numUnder(id, prefix);
+      if (n !== null && n >= max) { max = n; pad = id.length - prefix.length; }
+    });
+    var s = String(max + 1);
+    while (s.length < pad) s = '0' + s;
+    return prefix + s;
+  }
+
   /* Next id in a section, taken off the last one already there and stepped by
      one: CSTR_FDR.002 -> CSTR_FDR.003. Both the prefix and the zero padding come
      from the id in use, so a section keeps whatever numbering it was written
@@ -2238,11 +2301,16 @@ body.editing .addbar { display: flex; }
      highest in use rather than off the last row, so an id cannot be handed out
      twice where a section has been re-ordered or one deleted out of the middle.
      Sectionless rows get a plain placeholder. All of it is a starting point -
-     the id field is editable. */
-  function nextTaskId(section) {
+     the id field is editable.
+     Where the caller names the prefix (a section mixing prefixes has a button
+     per prefix - see addButtons()) that prefix is used as given, and only the
+     number and padding are worked out here. */
+  function nextTaskId(section, prefix) {
     var tasks = by('task');
     var ids = tasks.map(function (t) { return String(t.id || '').trim(); })
                    .filter(function (id) { return id !== ''; });
+
+    if (prefix) return stepUnder(ids, prefix);
 
     if (!section) {
       var k = 1;
@@ -2306,7 +2374,7 @@ body.editing .addbar { display: flex; }
     el.focus();
   }
 
-  function addRow(kind, section, title) {
+  function addRow(kind, section, title, prefix) {
     var row, focusCol;
 
     if (kind === 'note' || kind === 'confirm') {
@@ -2319,7 +2387,7 @@ body.editing .addbar { display: flex; }
       row.section = kind === 'section' ? nextSection() : (section || '');
       row.section_title = kind === 'section' ? '' : (title || '');
       row.status = kind === 'done' ? 'complete' : 'not-started';
-      row.id = nextTaskId(row.section);
+      row.id = nextTaskId(row.section, prefix);
       focusCol = 'task';
       insertAfterLast(row, row.section
         ? function (r) { return r.type === 'task' && r.section === row.section; }
@@ -2394,7 +2462,7 @@ body.editing .addbar { display: flex; }
     if (del) { deleteRow(del.dataset.del, del.dataset.what); return; }
 
     var add = e.target.closest('[data-add]');
-    if (add) { addRow(add.dataset.add, add.dataset.section, add.dataset.title); return; }
+    if (add) { addRow(add.dataset.add, add.dataset.section, add.dataset.title, add.dataset.prefix); return; }
 
     var chip = e.target.closest('.chip[data-f]');
     if (chip) { state.filter = chip.dataset.f; renderFilters(); renderGantt(); return; }
@@ -2632,6 +2700,7 @@ body.editing .addbar { display: flex; }
       'height:18px;container-type:inline-size}',
     '.barwrap[data-status="in-progress"]{--bar:var(--st-prog)}',
     '.barwrap[data-status="complete"]{--bar:var(--st-done)}',
+    '.barwrap[data-status="complete-kept"]{--bar:var(--st-done)}',
     '.barwrap[data-status="blocked"]{--bar:var(--st-block)}',
     '.barwrap[data-status="on-hold"]{--bar:var(--st-hold)}',
     '.bar{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;',
@@ -2665,6 +2734,7 @@ body.editing .addbar { display: flex; }
     '.legend .li{display:flex;align-items:center;gap:7px}',
     '.legend .sw{--sw:var(--st-not);width:20px;height:12px;background:var(--sw);flex:none}',
     '.legend .sw[data-s="in-progress"]{--sw:var(--st-prog)}',
+    '.legend .sw[data-s="complete-kept"]{--sw:var(--st-done)}',
     '.legend .sw[data-s="blocked"]{--sw:var(--st-block)}',
     '.legend .sw[data-s="on-hold"]{--sw:var(--st-hold)}',
     '.legend .sw.today{--sw:var(--today);width:3px}',
@@ -2797,9 +2867,9 @@ body.editing .addbar { display: flex; }
       '<style>' + GANTT_CSS + '</style></head><body><div class="sheet">' +
         '<div class="hd"><div><h1>' + esc(title) + '</h1>' +
           (sub ? '<div class="sub">' + esc(sub) + '</div>' : '') +
-          '<div class="sub">' + tasks.length + (tasks.length === 1 ? ' open task' : ' open tasks') +
+          '<div class="sub">' + tasks.length + (tasks.length === 1 ? ' task' : ' tasks') +
             (span ? ' &middot; ' + esc(rangeLabel(span.start, span.end)) : '') +
-            ' &middot; completed work not shown</div>' +
+            ' &middot; completed work not shown unless kept on chart</div>' +
         '</div><div class="meta">' + strip + '</div></div>' +
         '<table class="g"><colgroup><col class="cn" /><col /></colgroup>' +
           '<thead><tr><th class="ncell">Task</th>' +
