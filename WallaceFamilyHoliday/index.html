@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Family trip 2026</title>
+<style>
+  :root{
+    --slate:#23303a;
+    --ink:#101820;
+    --paper:#fbfaf7;
+    --rule:#cfd6d3;
+    --bracken:#8a5a1e;
+    --loch:#1f5d7a;
+    --quiet:#5d6b6f;
+    --strip:#fff3e0;
+    --plan:#eef4f7;
+    --ok:#2e7d4f;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --slate:#c9d4da;
+      --ink:#e8ecee;
+      --paper:#151b20;
+      --rule:#34414a;
+      --bracken:#e0a55a;
+      --loch:#2d7ea3;
+      --quiet:#9aa8ad;
+      --strip:#2b2217;
+      --plan:#1c2a33;
+      --ok:#5cc28a;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:46rem;margin:0 auto;padding:1.6rem 1.15rem 4rem}
+
+  header{border-bottom:3px solid var(--slate);padding-bottom:1rem;margin-bottom:1.6rem}
+  h1{
+    font-family:Georgia,"Iowan Old Style","Times New Roman",serif;
+    font-size:1.85rem;line-height:1.15;font-weight:600;margin:0 0 .35rem;
+    letter-spacing:-.01em;
+  }
+  .sub{color:var(--quiet);font-size:.95rem;margin:0}
+
+  .rule-strip{
+    margin:1.1rem 0 0;padding:.7rem .85rem;
+    background:var(--strip);border-left:4px solid var(--bracken);
+    font-size:.93rem;
+  }
+  .rule-strip + .rule-strip{margin-top:.5rem}
+  .rule-strip strong{color:var(--bracken)}
+
+  .status{color:var(--quiet);font-size:.82rem;margin:.9rem 0 0}
+  .status button{
+    font:inherit;color:var(--loch);background:none;border:0;padding:0;
+    text-decoration:underline;cursor:pointer;
+  }
+  .status.warn{color:var(--bracken);font-weight:600}
+
+  details.panel{margin:1rem 0 0;border-top:1px solid var(--rule);padding-top:.6rem}
+  details.panel summary{cursor:pointer;font-weight:600;font-size:.95rem;color:var(--slate)}
+  details.panel summary::-webkit-details-marker{color:var(--quiet)}
+
+  .stays{margin:.6rem 0 0;padding:0;list-style:none;font-size:.9rem}
+  .stays li{padding:.3rem 0;border-top:1px dotted var(--rule)}
+  .stays li:first-child{border-top:none}
+  .stays b{display:inline-block;min-width:4.6rem}
+  .stays a{color:var(--loch)}
+
+  .index{margin:.6rem 0 0;font-size:.9rem}
+  .index h3{
+    margin:.8rem 0 .2rem;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--quiet);
+  }
+  .index ol{list-style:none;margin:0;padding:0}
+  .index li{padding:.2rem 0}
+  .index a{color:var(--ink);text-decoration:none}
+  .index a b{display:inline-block;min-width:5.6rem;color:var(--slate);font-variant-numeric:tabular-nums}
+  .index li.is-today a{color:var(--bracken);font-weight:600}
+
+  .leg{
+    margin:2.6rem 0 0;padding:.35rem 0;border-bottom:1px solid var(--slate);
+    font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--slate);
+  }
+  .day{margin:2.2rem 0 0;padding-top:1.1rem;border-top:1px solid var(--rule);scroll-margin-top:.8rem}
+  .leg + .day{border-top:none;padding-top:.4rem;margin-top:1rem}
+  .day h2{
+    font-family:Georgia,"Iowan Old Style","Times New Roman",serif;
+    font-size:1.3rem;font-weight:600;margin:0 0 .15rem;
+  }
+  .day.today{border-top:3px solid var(--bracken)}
+  .today-badge{
+    display:inline-block;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font-size:.7rem;font-weight:700;letter-spacing:.06em;color:var(--paper);background:var(--bracken);
+    padding:.1rem .45rem;border-radius:.25rem;vertical-align:.2em;margin-left:.35rem;
+  }
+  .drive{color:var(--quiet);font-size:.9rem;margin:0 0 .9rem}
+
+  a.nav{
+    display:block;text-align:center;text-decoration:none;
+    background:var(--loch);color:#fff;font-weight:600;font-size:1rem;
+    padding:.85rem 1rem;border-radius:.4rem;margin:0 0 1.1rem;
+  }
+  a.nav:active{background:#164457}
+  a.nav:focus-visible{outline:3px solid var(--bracken);outline-offset:2px}
+  a.nav.overview{background:var(--slate);color:var(--paper);font-size:1.05rem;margin:1.1rem 0 .4rem}
+  a.nav.secondary{
+    background:transparent;color:var(--loch);border:1.5px solid var(--loch);
+    padding:.6rem 1rem;margin:.5rem 0 0;font-size:.95rem;
+  }
+  .hint{color:var(--quiet);font-size:.82rem;margin:-.8rem 0 1rem}
+
+  ol.stops{list-style:none;margin:0;padding:0}
+  ol.stops li{
+    display:grid;grid-template-columns:4.1rem 1fr;gap:.1rem .8rem;
+    padding:.7rem 0;border-top:1px dotted var(--rule);
+  }
+  ol.stops li:first-child{border-top:none}
+  ol.stops li.evening{background:var(--plan);border-radius:.3rem;padding:.7rem .5rem;margin:.2rem -.5rem}
+  ol.stops li.travel .place{font-weight:500}
+  .time{
+    font-variant-numeric:tabular-nums;font-weight:700;color:var(--slate);
+    font-size:1rem;padding-top:.05rem;overflow-wrap:anywhere;
+  }
+  .place{font-weight:600}
+  .note{grid-column:2;color:var(--quiet);font-size:.88rem;line-height:1.45}
+  .note a{color:var(--loch)}
+  .note .addr{display:block}
+  .flag{color:var(--bracken);font-weight:600}
+  .tag{
+    display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.03em;
+    padding:.05rem .4rem;border-radius:.25rem;vertical-align:.1em;margin-left:.25rem;
+    border:1px solid currentColor;white-space:nowrap;
+  }
+  .tag.ok{color:var(--ok)}
+  .tag.todo{color:var(--bracken)}
+  .tag.info{color:var(--quiet)}
+
+  .empty{padding:2rem 0;color:var(--quiet)}
+  .empty code{background:var(--plan);padding:.1rem .3rem;border-radius:.2rem}
+
+  footer{
+    margin-top:2.6rem;padding-top:1rem;border-top:1px solid var(--rule);
+    color:var(--quiet);font-size:.85rem;
+  }
+  footer p{margin:.4rem 0}
+  footer a{color:var(--loch)}
+
+  @media print{
+    body{background:#fff;color:#000}
+    a.nav,.status,details.panel{display:none}
+    .day{page-break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header id="top">
+    <h1 id="title">Family trip 2026</h1>
+    <p class="sub" id="subtitle">Loading the itinerary…</p>
+    <div id="rules"></div>
+    <div id="today-jump"></div>
+    <div id="links"></div>
+    <p class="status" id="status" role="status"></p>
+    <details class="panel" id="bookings-panel" hidden><summary id="bookings-summary">Bookings</summary><ul class="stays" id="bookings"></ul></details>
+    <details class="panel" id="index-panel" hidden><summary id="index-summary">All days</summary><div class="index" id="index"></div></details>
+  </header>
+
+  <main id="days"></main>
+
+  <footer>
+    <p>Everything on this page comes from the <b>Web</b> tab of the trip spreadsheet. Change the sheet and this page catches up within about five minutes (Google's publishing delay) - tap Refresh to check.</p>
+    <p>Driving times are Google estimates in clear conditions. Add 20–30% for snow, ice or roadworks. Train times are from the operators' timetables and should be re-checked the day before.</p>
+    <p>Booking references are deliberately not on this page. Use the Confirmation links, which open in Google Drive with your Google login.</p>
+  </footer>
+</div>
+
+<script>
+/* ------------------------------------------------------------------
+   SETTINGS
+   CSV_URL: the "Publish to web" link for the Web tab only, in CSV
+   format. It looks like:
+   https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?gid=123456789&single=true&output=csv
+------------------------------------------------------------------- */
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTzOQmXgrNP8lSOxVdtf4YN3ufwdOYHNZ6_d9HaNpn3BWp-UoRRbtqHzc984WzemS6xxX_BORdEyQfa/pub?gid=703781317&single=true&output=csv";
+const SHEET_URL = "https://docs.google.com/spreadsheets/d/1gTD1p6b1Kq7fwXbmBgqpJCQXD3mCx8AF9UlT9GvTQnQ/edit";
+const CACHE_KEY = "family-trip-2026-csv";
+const STALE_MS = 5 * 60 * 1000;
+
+/* ---------------------------------------------------------------- helpers */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const nl2br = (s) => esc(s).replace(/\r?\n/g, "<br>");
+const safeUrl = (u) => /^https?:\/\//i.test(String(u || "").trim()) ? String(u).trim() : "";
+const MONTHS = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, sept:8, oct:9, nov:10, dec:11 };
+const DOW = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function storeGet() { try { return JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); } catch (e) { return null; } }
+function storeSet(v) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
+
+/* RFC 4180 CSV parser: handles quotes, doubled quotes and line breaks in cells. */
+function parseCSV(text) {
+  const rows = []; let row = []; let cell = ""; let q = false;
+  text = String(text).replace(/^﻿/, "");
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += c;
+    } else if (c === '"') q = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += c;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+/* Accepts "7 Nov 2026", "Sat 7 Nov 2026", "07/11/2026" (day first), "2026-11-07", "7-Nov-2026". */
+function parseDate(s) {
+  s = String(s || "").trim();
+  if (!s) return null;
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  m = s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})$/);
+  if (m) return new Date(m[3].length === 2 ? 2000 + +m[3] : +m[3], +m[2] - 1, +m[1]);
+  m = s.match(/(\d{1,2})[\s-]+([A-Za-z]{3,9})\.?[\s-]+(\d{4})/);
+  if (m && MONTHS[m[2].slice(0, 4).toLowerCase()] !== undefined) return new Date(+m[3], MONTHS[m[2].slice(0, 4).toLowerCase()], +m[1]);
+  if (m && MONTHS[m[2].slice(0, 3).toLowerCase()] !== undefined) return new Date(+m[3], MONTHS[m[2].slice(0, 3).toLowerCase()], +m[1]);
+  return null;
+}
+const keyOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const shortDate = (d) => `${d.getDate()} ${MON[d.getMonth()]}`;
+const longDate = (d) => `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`;
+
+/* ---------------------------------------------------------------- model */
+function buildModel(csvText) {
+  const grid = parseCSV(csvText).filter((r) => r.some((c) => String(c).trim() !== ""));
+  if (!grid.length) throw new Error("The sheet came back empty.");
+  const head = grid[0].map((h) => String(h).trim().toUpperCase());
+  const col = (name) => head.indexOf(name);
+  for (const need of ["DATE", "TYPE", "PLACE"]) if (col(need) < 0) throw new Error(`The sheet has no ${need} column.`);
+  const get = (r, name) => { const i = col(name); return i < 0 ? "" : String(r[i] ?? "").trim(); };
+
+  const model = { title: null, rules: [], links: [], days: [] };
+  const byKey = new Map();
+  for (const r of grid.slice(1)) {
+    const row = {
+      date: get(r, "DATE"), leg: get(r, "LEG"), type: get(r, "TYPE").toUpperCase(), time: get(r, "TIME"),
+      place: get(r, "PLACE"), address: get(r, "ADDRESS"), notes: get(r, "NOTES"), flag: get(r, "FLAG"),
+      status: get(r, "STATUS").toUpperCase(), map: get(r, "MAP"), doc: get(r, "DOC"),
+    };
+    if (row.type === "TITLE") { model.title = row; continue; }
+    if (row.type === "RULE") { model.rules.push(row); continue; }
+    if (row.type === "LINK") { model.links.push(row); continue; }
+    const d = parseDate(row.date);
+    if (!d) continue;
+    const k = keyOf(d);
+    let day = byKey.get(k);
+    if (!day) { day = { key: k, date: d, head: null, stops: [] }; byKey.set(k, day); }
+    if (row.type === "DAY") day.head = row; else day.stops.push(row);
+  }
+  model.days = [...byKey.values()].sort((a, b) => a.date - b.date);
+  for (const day of model.days) {
+    if (!day.head) day.head = { place: "", notes: "", map: "", leg: day.stops[0]?.leg || "" };
+    if (!day.head.leg) day.head.leg = day.stops[0]?.leg || "";
+  }
+  return model;
+}
+
+/* ---------------------------------------------------------------- maps */
+const MODES = { driving: "driving", walking: "walking", transit: "transit", bicycling: "bicycling", cycling: "bicycling" };
+function dayMap(day) {
+  const raw = (day.head.map || "").toLowerCase().trim();
+  if (raw === "none" || raw === "no" || raw === "n") return null;
+  const mode = MODES[raw] || "transit";
+  const pts = [];
+  for (const s of day.stops) {
+    const m = (s.map || "").trim();
+    if (!m || /^(n|no)$/i.test(m)) continue;
+    const p = /^(y|yes)$/i.test(m) ? (s.address || s.place) : m;
+    if (p && !/^tbc\b/i.test(p)) pts.push(p);
+  }
+  for (let i = pts.length - 1; i > 0; i--) if (pts[i] === pts[i - 1]) pts.splice(i, 1);
+  if (pts.length < 2) return null;
+  let route = pts;
+  if (mode === "transit") {
+    // Public transport can't take in-between stops: go from the first stop to the last one,
+    // or, on a there-and-back day, to the last place that isn't the starting point.
+    const away = pts.filter((p) => p !== pts[0]);
+    if (!away.length) return null;
+    route = [pts[0], away[away.length - 1]];
+  }
+  const p = new URLSearchParams({ api: "1", origin: route[0], destination: route[route.length - 1], travelmode: mode });
+  const mid = route.slice(1, -1).slice(0, 9);
+  if (mid.length) p.set("waypoints", mid.join("|"));
+  const label = { driving: "", walking: " (walking)", transit: " (public transport)", bicycling: " (cycling)" }[mode];
+  let hint = "";
+  if (mode === "transit" && pts.length > 2) hint = "Public transport directions only cover the main journey; tap any address below to navigate to that stop.";
+  else if (mid.length > 3) hint = "On a phone browser Google Maps may only show the first three in-between stops; the app usually shows them all.";
+  return { url: "https://www.google.com/maps/dir/?" + p.toString(), label: "Open this day in Google Maps" + label, hint };
+}
+const searchUrl = (addr) => "https://www.google.com/maps/search/?" + new URLSearchParams({ api: "1", query: addr }).toString();
+
+/* ---------------------------------------------------------------- render */
+function tagFor(status) {
+  if (!status) return "";
+  const cls = status === "BOOKED" || status === "CONFIRMED" || status === "DONE" ? "ok"
+    : /BUY|INFO|OPTIONAL/.test(status) ? "info" : "todo";
+  return `<span class="tag ${cls}">${esc(status)}</span>`;
+}
+function docLink(doc) {
+  const u = safeUrl(doc);
+  return u ? ` <a href="${esc(u)}" target="_blank" rel="noopener">Confirmation&nbsp;↗</a>` : "";
+}
+
+function render(model, todayKey) {
+  // header
+  if (model.title) {
+    $("title").textContent = model.title.place || "Family trip";
+    document.title = model.title.place || "Family trip";
+    $("subtitle").textContent = model.title.notes || "";
+  } else $("subtitle").textContent = "";
+  $("rules").innerHTML = model.rules.map((r) =>
+    `<div class="rule-strip"><strong>${esc(r.place)}:</strong> ${nl2br(r.notes)}</div>`).join("");
+  $("links").innerHTML = model.links.map((l) => {
+    const u = safeUrl(l.address); if (!u) return "";
+    return `<a class="nav secondary" href="${esc(u)}" target="_blank" rel="noopener">${esc(l.place)}</a>` +
+      (l.notes ? `<p class="hint" style="margin:.25rem 0 0">${esc(l.notes)}</p>` : "");
+  }).join("") || `<a class="nav secondary" href="${esc(SHEET_URL)}" target="_blank" rel="noopener">Trip spreadsheet</a>`;
+
+  const days = model.days;
+  if (!days.length) { $("days").innerHTML = `<p class="empty">No days found in the sheet yet.</p>`; return; }
+
+  // today
+  const first = days[0].key, last = days[days.length - 1].key;
+  const todayDay = days.find((d) => d.key === todayKey);
+  const jump = $("today-jump");
+  if (todayDay) {
+    jump.innerHTML = `<a class="nav overview" href="#d-${todayDay.key}">Today · ${esc(longDate(todayDay.date))}${todayDay.head.place ? " · " + esc(todayDay.head.place) : ""}</a>`;
+  } else if (todayKey < first) {
+    const n = Math.round((days[0].date - new Date(todayKey + "T00:00:00")) / 864e5);
+    jump.innerHTML = `<a class="nav overview" href="#d-${first}">Day 1 · ${esc(longDate(days[0].date))}${n > 0 ? ` · ${n} day${n === 1 ? "" : "s"} to go` : ""}</a>`;
+  } else jump.innerHTML = "";
+
+  // bookings list
+  const bookings = [];
+  for (const d of days) for (const s of d.stops) if (s.status) bookings.push({ d, s });
+  if (bookings.length) {
+    const booked = bookings.filter((b) => /BOOKED|CONFIRMED|DONE/.test(b.s.status)).length;
+    const toDo = bookings.filter((b) => /TO BOOK|CHECK/.test(b.s.status)).length;
+    $("bookings-summary").textContent = `Bookings · ${booked} booked, ${toDo} to book or check`;
+    $("bookings").innerHTML = bookings.map(({ d, s }) =>
+      `<li><b><a href="#d-${d.key}">${esc(shortDate(d.date))}</a></b> ${esc(s.place)} ${tagFor(s.status)}${docLink(s.doc)}</li>`).join("");
+    $("bookings-panel").hidden = false;
+  } else $("bookings-panel").hidden = true;
+
+  // index
+  let idx = "", lastLeg = null, open = false;
+  for (const d of days) {
+    const leg = d.head.leg || "";
+    if (leg !== lastLeg) {
+      if (open) idx += "</ol>";
+      idx += `<h3>${esc(leg || "Trip")}</h3><ol>`; open = true; lastLeg = leg;
+    }
+    idx += `<li class="${d.key === todayKey ? "is-today" : ""}"><a href="#d-${d.key}"><b>${esc(shortDate(d.date))}</b>${esc(d.head.place || "")}</a></li>`;
+  }
+  if (open) idx += "</ol>";
+  $("index").innerHTML = idx;
+  $("index-summary").textContent = `All ${days.length} days`;
+  $("index-panel").hidden = false;
+
+  // days
+  let html = ""; lastLeg = null;
+  for (const d of days) {
+    const leg = d.head.leg || "";
+    if (leg && leg !== lastLeg) html += `<div class="leg">${esc(leg)}</div>`;
+    lastLeg = leg;
+    const isToday = d.key === todayKey;
+    const map = dayMap(d);
+    html += `<section class="day${isToday ? " today" : ""}" id="d-${d.key}">`;
+    html += `<h2>${esc(longDate(d.date))}${d.head.place ? " — " + esc(d.head.place) : ""}${isToday ? '<span class="today-badge">TODAY</span>' : ""}</h2>`;
+    if (d.head.notes) html += `<p class="drive">${esc(d.head.notes)}</p>`;
+    if (map) {
+      html += `<a class="nav" href="${esc(map.url)}" target="_blank" rel="noopener">${esc(map.label)}</a>`;
+      if (map.hint) html += `<p class="hint">${esc(map.hint)}</p>`;
+    }
+    html += `<ol class="stops">`;
+    for (const s of d.stops) {
+      const cls = s.type === "EVENING" ? "evening" : s.type === "TRAVEL" ? "travel" : "";
+      let note = "";
+      if (s.address) {
+        note += /^tbc\b/i.test(s.address)
+          ? `<span class="addr flag">${esc(s.address)}</span>`
+          : `<a class="addr" href="${esc(searchUrl(s.address))}" target="_blank" rel="noopener">${esc(s.address)}</a>`;
+      }
+      if (s.notes) note += nl2br(s.notes) + " ";
+      if (s.flag) note += `<span class="flag">${nl2br(s.flag)}</span> `;
+      note += tagFor(s.status) + docLink(s.doc);
+      html += `<li class="${cls}"><span class="time">${esc(s.time)}</span><span class="place">${esc(s.place)}</span>` +
+        (note.trim() ? `<span class="note">${note}</span>` : "") + `</li>`;
+    }
+    html += `</ol></section>`;
+  }
+  $("days").innerHTML = html;
+}
+
+/* ---------------------------------------------------------------- load */
+let lastLoad = 0, firstRender = true;
+function todayKeyNow() { return keyOf(new Date()); }
+
+function setStatus(html, warn) { const el = $("status"); el.innerHTML = html; el.classList.toggle("warn", !!warn); }
+function fmtTime(ts) {
+  const d = new Date(ts);
+  return `${d.getDate()} ${MON[d.getMonth()]} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+const refreshBtn = ` · <button type="button" id="refresh">Refresh</button>`;
+
+function show(csv, savedAt, live) {
+  render(buildModel(csv), todayKeyNow());
+  setStatus(live
+    ? `Updated from the trip sheet at ${esc(fmtTime(savedAt))}${refreshBtn}`
+    : `Couldn't reach the sheet - showing the copy saved on this phone from ${esc(fmtTime(savedAt))}${refreshBtn}`, !live);
+  const btn = $("refresh"); if (btn) btn.onclick = () => load(true);
+  if (firstRender) {
+    firstRender = false;
+    const target = location.hash ? null : document.getElementById("d-" + todayKeyNow());
+    if (target) setTimeout(() => target.scrollIntoView(), 50);
+    else if (location.hash) { const el = document.getElementById(location.hash.slice(1)); if (el) setTimeout(() => el.scrollIntoView(), 50); }
+  }
+}
+
+function csvSource() {
+  // Optional ?src=relative/file.csv for local testing (same-site files only).
+  const src = new URLSearchParams(location.search).get("src");
+  if (src && !/^[a-z]+:|^\/\//i.test(src)) return src;
+  return CSV_URL;
+}
+
+async function load(manual) {
+  const url = csvSource();
+  const cached = storeGet();
+  if (!url || url.startsWith("PASTE_")) {
+    $("subtitle").textContent = "";
+    $("days").innerHTML = `<div class="empty"><p><b>Almost there.</b> This page doesn't know where the itinerary is yet.</p>
+      <p>In the trip spreadsheet choose <b>File › Share › Publish to web</b>, pick the <b>Web</b> tab and <b>Comma-separated values (.csv)</b>, publish, then paste the link into <code>CSV_URL</code> at the bottom of <code>index.html</code>.</p></div>`;
+    return;
+  }
+  if (manual) setStatus("Refreshing…");
+  try {
+    const sep = url.includes("?") ? "&" : "?";
+    const res = await fetch(url + sep + "_=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const text = await res.text();
+    if (/^\s*<(!doctype|html)/i.test(text)) throw new Error("The link returned a web page, not CSV - check it ends in output=csv.");
+    buildModel(text); // validate before caching
+    const savedAt = Date.now();
+    storeSet({ csv: text, savedAt });
+    lastLoad = savedAt;
+    show(text, savedAt, true);
+  } catch (err) {
+    if (cached && cached.csv) {
+      lastLoad = Date.now();
+      try { show(cached.csv, cached.savedAt, false); return; } catch (e) { /* fall through */ }
+    }
+    $("subtitle").textContent = "";
+    setStatus(`Couldn't load the itinerary: ${esc(err.message)}${refreshBtn}`, true);
+    const btn = $("refresh"); if (btn) btn.onclick = () => load(true);
+  }
+}
+
+// Show the saved copy instantly, then fetch the latest.
+(function start() {
+  const cached = storeGet();
+  if (cached && cached.csv && CSV_URL && !CSV_URL.startsWith("PASTE_") && !new URLSearchParams(location.search).get("src")) {
+    try { show(cached.csv, cached.savedAt, true); setStatus(`Showing the saved copy from ${esc(fmtTime(cached.savedAt))} - checking for updates…`); } catch (e) { /* ignore */ }
+  }
+  load(false);
+})();
+
+// Re-check when the page comes back to the foreground (e.g. reopening the tab on the phone).
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && Date.now() - lastLoad > STALE_MS) load(false);
+});
+</script>
+</body>
+</html>

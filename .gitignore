@@ -9,3 +9,4 @@
 # Client pages. Re-including the root folder is enough — /* only
 # matches root-level entries, so everything inside is then tracked.
 !/Ivel/
+!/WallaceFamilyHoliday/
