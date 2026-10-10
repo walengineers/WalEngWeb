@@ -85,6 +85,41 @@
   .index a b{display:inline-block;min-width:5.6rem;color:var(--slate);font-variant-numeric:tabular-nums}
   .index li.is-today a{color:var(--bracken);font-weight:600}
 
+  /* Trip timeline: one block per run of days at the same place.
+     Adapted from the milestone timeline in Templates/HTML_Reference/16-implementation-plan.html. */
+  .trip-line{margin:1.3rem 0 0}
+  .trip-line .tl-head{
+    margin:0 0 .7rem;font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--slate);
+  }
+  .milestone{
+    display:grid;grid-template-columns:5.4rem 14px 1fr;gap:0 .8rem;
+    color:inherit;text-decoration:none;
+  }
+  .milestone:focus-visible{outline:3px solid var(--bracken);outline-offset:2px;border-radius:.25rem}
+  .milestone .when{
+    text-align:right;font-size:.8rem;color:var(--quiet);padding-top:.15rem;
+    font-variant-numeric:tabular-nums;line-height:1.3;
+  }
+  .milestone .dot-col{display:flex;flex-direction:column;align-items:center}
+  .milestone .dot{
+    width:14px;height:14px;border-radius:50%;flex-shrink:0;margin-top:.3rem;
+    background:var(--paper);border:3px solid var(--loch);
+  }
+  .milestone.done .dot{background:var(--ok);border-color:var(--ok)}
+  .milestone.now .dot{background:var(--bracken);border-color:var(--bracken);box-shadow:0 0 0 4px var(--strip)}
+  .milestone .line{width:2px;flex:1;min-height:.6rem;background:var(--rule);margin:4px 0}
+  .milestone.done .line{background:var(--ok)}
+  .milestone:last-child .line{display:none}
+  .milestone .body{padding-bottom:.9rem;min-width:0}
+  .milestone .body .ttl{display:block;
+    font-family:Georgia,"Iowan Old Style","Times New Roman",serif;
+    font-size:1.02rem;font-weight:600;line-height:1.3;margin:0;color:var(--ink);
+  }
+  .milestone.done .body .ttl{color:var(--quiet);font-weight:500}
+  .milestone.now .body .ttl{color:var(--bracken)}
+  .milestone .body .dtl{display:block;margin:.1rem 0 0;font-size:.82rem;color:var(--quiet)}
+  .milestone.now .body .dtl{color:var(--bracken);font-weight:600}
+
   .leg{
     margin:2.6rem 0 0;padding:.35rem 0;border-bottom:1px solid var(--slate);
     font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--slate);
@@ -167,6 +202,7 @@
     <p class="sub" id="subtitle">Loading the itinerary…</p>
     <div id="rules"></div>
     <div id="today-jump"></div>
+    <nav class="trip-line" id="trip-line" aria-label="Trip timeline"></nav>
     <div id="links"></div>
     <p class="status" id="status" role="status"></p>
     <details class="panel" id="bookings-panel" hidden><summary id="bookings-summary">Bookings</summary><ul class="stays" id="bookings"></ul></details>
@@ -325,6 +361,49 @@ function docLink(doc) {
   return u ? ` <a href="${esc(u)}" target="_blank" rel="noopener">Confirmation&nbsp;↗</a>` : "";
 }
 
+/* Consecutive days with the same LEG become one block. */
+function tripBlocks(days) {
+  const blocks = [];
+  for (const d of days) {
+    const label = d.head.leg || d.head.place || "To be confirmed";
+    const prev = blocks[blocks.length - 1];
+    if (prev && prev.label.toLowerCase() === label.toLowerCase()) prev.days.push(d);
+    else blocks.push({ label, days: [d] });
+  }
+  return blocks;
+}
+function dateRange(a, b) {
+  if (a.getTime() === b.getTime()) return shortDate(a);
+  if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) return `${a.getDate()}–${b.getDate()} ${MON[b.getMonth()]}`;
+  return `${shortDate(a)} – ${shortDate(b)}`;
+}
+function renderTimeline(days, todayKey) {
+  const blocks = tripBlocks(days);
+  const nowIdx = blocks.findIndex((b) => b.days[0].key <= todayKey && todayKey <= b.days[b.days.length - 1].key);
+  const head = nowIdx >= 0 ? `Where we are · stop ${nowIdx + 1} of ${blocks.length}`
+    : todayKey > days[days.length - 1].key ? `Trip timeline · home again`
+    : `Trip timeline · ${blocks.length} stop${blocks.length === 1 ? "" : "s"}`;
+  let html = `<p class="tl-head">${esc(head)}</p>`;
+  blocks.forEach((b, i) => {
+    const first = b.days[0], last = b.days[b.days.length - 1];
+    // Nights: from this block's first day to the next block's first day.
+    // The last block's final day is the trip's end, so it doesn't count as a night.
+    const next = blocks[i + 1];
+    const nights = Math.round(((next ? next.days[0].date : last.date) - first.date) / 864e5);
+    const state = last.key < todayKey ? "done" : i === nowIdx ? "now" : "";
+    let detail = nights ? `${nights} night${nights === 1 ? "" : "s"}` : "No overnight";
+    if (state === "now") {
+      const n = Math.round((new Date(todayKey + "T00:00:00") - first.date) / 864e5) + 1;
+      detail = n <= nights && nights > 1 ? `Here now · night ${n} of ${nights}` : "Here now";
+    }
+    html += `<a class="milestone ${state}" href="#d-${first.key}"${state === "now" ? ' aria-current="step"' : ""}>` +
+      `<span class="when">${esc(dateRange(first.date, last.date))}</span>` +
+      `<span class="dot-col"><span class="dot"></span><span class="line"></span></span>` +
+      `<span class="body"><span class="ttl">${esc(b.label)}</span><span class="dtl">${esc(detail)}</span></span></a>`;
+  });
+  return html;
+}
+
 function render(model, todayKey) {
   // header
   if (model.title) {
@@ -341,6 +420,7 @@ function render(model, todayKey) {
   }).join("") || `<a class="nav secondary" href="${esc(SHEET_URL)}" target="_blank" rel="noopener">Trip spreadsheet</a>`;
 
   const days = model.days;
+  $("trip-line").innerHTML = "";
   if (!days.length) { $("days").innerHTML = `<p class="empty">No days found in the sheet yet.</p>`; return; }
 
   // today
@@ -353,6 +433,9 @@ function render(model, todayKey) {
     const n = Math.round((days[0].date - new Date(todayKey + "T00:00:00")) / 864e5);
     jump.innerHTML = `<a class="nav overview" href="#d-${first}">Day 1 · ${esc(longDate(days[0].date))}${n > 0 ? ` · ${n} day${n === 1 ? "" : "s"} to go` : ""}</a>`;
   } else jump.innerHTML = "";
+
+  // trip timeline
+  $("trip-line").innerHTML = renderTimeline(days, todayKey);
 
   // bookings list
   const bookings = [];
